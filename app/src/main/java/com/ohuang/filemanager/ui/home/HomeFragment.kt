@@ -9,6 +9,8 @@ import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.kennyc.view.MultiStateView
+import com.ohuang.filemanager.WebActivity
 import com.ohuang.filemanager.config.Http
 
 import com.ohuang.filemanager.databinding.FragmentHomeBinding
@@ -39,12 +41,16 @@ class HomeFragment : Fragment() {
         val root: View = binding.root
         binding.rvHome.layoutManager = LinearLayoutManager(context)
 
-        homeViewModel.state.observe(viewLifecycleOwner,
-            { t ->
-                if (t != null) {
-                    binding.multiStateView.viewState = t
-                }
-            })
+        homeViewModel.state.observe(
+            viewLifecycleOwner
+        ) { t ->
+            if (t != null) {
+                binding.multiStateView.viewState = t
+            }
+        }
+        binding.multiStateView.getView(MultiStateView.ViewState.ERROR)?.setOnClickListener {
+            homeViewModel.loadData(homeViewModel.filePath)
+        }
 
 
         homeViewModel.toastData.observe(
@@ -105,6 +111,17 @@ class HomeFragment : Fragment() {
 
             }
 
+        }
+        mAdapter?.itemClickListerner = { position ->
+
+            var fileBean = mAdapter!!.mData[position]
+            if (fileBean!!.isFolder) {
+                homeViewModel.loadData(fileBean.name)
+            } else {
+                var replace = fileBean.name.replace("/", "%2f")
+                val s = Http.Main.Get() + "/?name=$replace"
+                WebActivity.start(requireContext(), s)
+            }
         }
     }
 

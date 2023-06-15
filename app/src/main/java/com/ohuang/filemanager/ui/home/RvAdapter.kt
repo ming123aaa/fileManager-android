@@ -18,6 +18,7 @@ class RvAdapter(mcontext: Context, mdata: List<FileBean?>) :
     private val context = mcontext
     var mData = mdata
     var itemButtonListerner:ItemButtonListerner?=null
+    var itemClickListerner:((Int)->Unit)?=null
 
 
 
@@ -37,6 +38,9 @@ class RvAdapter(mcontext: Context, mdata: List<FileBean?>) :
              }
              holder.item.ivList.setOnClickListener {
                  itemButtonListerner?.onClick(position)
+             }
+             holder.item.clItem.setOnClickListener {
+                 itemClickListerner?.invoke(position)
              }
 
          }
