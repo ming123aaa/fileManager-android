@@ -75,9 +75,9 @@ class MainActivity : AppCompatActivity() {
     private val connection: ServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, service: IBinder) {
             binder = service as UploadService.DownUpBinder
-            binder?.getLivedata()?.observe(this@MainActivity, {
+            binder?.getLivedata()?.observe(this@MainActivity) {
                 binding.tvProcess.text = it
-            })
+            }
         }
 
         override fun onServiceDisconnected(name: ComponentName) {}

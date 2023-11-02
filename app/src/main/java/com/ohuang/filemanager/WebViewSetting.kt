@@ -31,8 +31,7 @@ object WebViewSetting {
             domStorageEnabled = true
             //关闭webView中缓存
             cacheMode = WebSettings.LOAD_NO_CACHE
-            //设置缓存路径
-            setAppCachePath(context.cacheDir.absolutePath)
+
 
             /************ 页面自动适配 **********/
             //步骤1.隐藏webview缩放按钮

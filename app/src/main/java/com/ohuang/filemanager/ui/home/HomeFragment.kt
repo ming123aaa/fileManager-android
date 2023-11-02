@@ -1,10 +1,11 @@
 package com.ohuang.filemanager.ui.home
 
 import android.os.Bundle
-import android.os.SystemClock
+import android.text.TextUtils
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.SearchView.OnQueryTextListener
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
@@ -12,7 +13,6 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.kennyc.view.MultiStateView
 import com.ohuang.filemanager.WebActivity
 import com.ohuang.filemanager.config.Http
-
 import com.ohuang.filemanager.databinding.FragmentHomeBinding
 import com.ohuang.filemanager.util.ClipboardUtils
 import com.ohuang.refresh.OnRefreshListener
@@ -67,6 +67,7 @@ class HomeFragment : Fragment() {
             } else {
                 mAdapter?.mData = t
             }
+            binding.rvHome.scrollToPosition(0)
             binding.tvName.setText(homeViewModel.filePath)
             mAdapter?.notifyDataSetChanged()
         }
@@ -92,8 +93,28 @@ class HomeFragment : Fragment() {
         }
 
         homeViewModel.loadData()
+        initSearch()
 
         return root
+    }
+
+    private fun initSearch() {
+        binding.searchView.isSubmitButtonEnabled = true
+        binding.searchView.isIconifiedByDefault = false
+        binding.searchView.setOnQueryTextListener(object : OnQueryTextListener {
+            override fun onQueryTextSubmit(query: String?): Boolean {
+                homeViewModel.setSearchData(query ?: "")
+                return false
+            }
+
+            override fun onQueryTextChange(newText: String?): Boolean {
+                if (TextUtils.isEmpty(newText)){
+                    homeViewModel.setSearchData("")
+                }
+                return false
+            }
+
+        })
     }
 
     private fun initAdapter() {
