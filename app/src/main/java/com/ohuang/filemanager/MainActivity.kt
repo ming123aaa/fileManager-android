@@ -4,6 +4,7 @@ import android.content.ComponentName
 import android.content.Intent
 import android.content.ServiceConnection
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.widget.Toast
@@ -11,6 +12,7 @@ import androidx.appcompat.app.AppCompatActivity
 
 import com.ohuang.filemanager.databinding.ActivityMainBinding
 import com.ohuang.filemanager.service.UploadService
+import com.ohuang.filemanager.util.PermissionUtil
 import okhttp3.*
 
 
@@ -34,6 +36,7 @@ class MainActivity : AppCompatActivity() {
                 READ_REQUEST_CODE
             )
         }
+       PermissionUtil.checkAndRequest(this, arrayOf("android.permission.READ_EXTERNAL_STORAGE"))
 
 
         binding.btnUpload.setOnClickListener {
@@ -68,6 +71,9 @@ class MainActivity : AppCompatActivity() {
             }
         }
         val intent2 = Intent(this, UploadService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent2)
+        }
         bindService(intent2, connection, BIND_AUTO_CREATE)
     }
 

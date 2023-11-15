@@ -36,8 +36,8 @@ class UploadService : Service() {
     //通知
     private val CHANNEL_ID2 = "Channel2"
     var notifId_1 = 0x1
-    var binder=DownUpBinder()
-    var liveData=MutableLiveData<String>()
+    var binder = DownUpBinder()
+    var liveData = MutableLiveData<String>()
 
     //通知
     private fun notifaction() {
@@ -77,16 +77,14 @@ class UploadService : Service() {
         fun startUpLoad(uri: Uri) {
             if (!isUploading) {
                 upload2(uri)
-                isUploading=true
+                isUploading = true
 
             }
         }
 
-        fun isUpload()=isUploading
+        fun isUpload() = isUploading
 
-        fun getLivedata()=liveData
-
-
+        fun getLivedata() = liveData
 
 
     }
@@ -103,76 +101,42 @@ class UploadService : Service() {
     var isUploading = false
 
     fun upload2(fileUri: Uri) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            rxhttpUpload(fileUri)
-        } else {
-            rxhttpUpload2(fileUri)
-        }
+        rxhttpUpload(fileUri)
     }
 
     private fun rxhttpUpload(fileUri: Uri) {
         GlobalScope.launch {
 
 
-                showProgress("正在准备上传")
-                liveData.postValue("正在准备上传")
+            showProgress("正在准备上传")
+            liveData.postValue("正在准备上传")
             RxHttp.postForm(Http.Main.FileUpload())
                 .addPart(this@UploadService, "fileName", fileUri)
                 .toObservable<String>()
-                .onMainProgress  {//this为当前协程CoroutineScope对象，用于控制回调线程
+                .onMainProgress {//this为当前协程CoroutineScope对象，用于控制回调线程
                     //上传进度回调,0-100，仅在进度有更新时才会回调
                     val currentProgress = it.progress //当前进度 0-100
                     val currentSize = it.currentSize  //当前已上传的字节大小
                     val totalSize = it.totalSize
                     val s =
                         "" + (currentSize / (1024 * 1024 * 1.0f)) + "MB/" + (totalSize / (1024 * 1024 * 1.0f)) + "MB"
-                    val progress= "当前进度为$currentProgress%  $s"
+                    val progress = "当前进度为$currentProgress%  $s"
                     showProgress(progress)
                     liveData.postValue(progress)
                 }.subscribe({
                     showProgress("上传任务完成")
                     liveData.postValue("上传任务完成")
                     isUploading = false
-                },{
+                }, {
                     isUploading = false
-                    showProgress("上传失败"+it)
-                    liveData.postValue("上传失败"+it)
+                    showProgress("上传失败" + it)
+                    liveData.postValue("上传失败" + it)
                 })
-
 
 
         }
 
     }
 
-    private fun rxhttpUpload2(fileUri: Uri) {
-        val path = UriToFile.getPath(this, fileUri)
 
-            RxHttp.postForm(Http.Main.FileUpload())
-                .addFile("fileName", File(path))
-                .toObservable<String>()
-                .onMainProgress{//this为当前协程CoroutineScope对象，用于控制回调线程
-                    //上传进度回调,0-100，仅在进度有更新时才会回调
-                    val currentProgress = it.progress //当前进度 0-100
-                    val currentSize = it.currentSize  //当前已上传的字节大小
-                    val totalSize = it.totalSize
-                    val s =
-                        "" + (currentSize / (1024 * 1024 * 1.0f)) + "MB/" + (totalSize / (1024 * 1024 * 1.0f)) + "MB"
-                    val progress= "当前进度为$currentProgress%  $s"
-                    showProgress(progress)
-                    liveData.postValue(progress)
-                }.subscribe ({
-                    showProgress("上传任务完成")
-                    liveData.postValue("上传任务完成")
-                    isUploading = false
-                },{
-                    showProgress("失败"+it)
-                    liveData.postValue("失败"+it)
-                    isUploading = false
-                })
-
-
-
-
-    }
 }

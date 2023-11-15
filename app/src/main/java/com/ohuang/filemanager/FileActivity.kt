@@ -3,6 +3,7 @@ package com.ohuang.filemanager
 import android.content.ComponentName
 import android.content.Intent
 import android.content.ServiceConnection
+import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.os.SystemClock
@@ -42,6 +43,9 @@ class FileActivity : AppCompatActivity() {
             }
         }
         val intent2 = Intent(this, UploadService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent2)
+        }
         bindService(intent2, connection, BIND_AUTO_CREATE)
     }
 
