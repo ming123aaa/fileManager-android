@@ -12,7 +12,9 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.kennyc.view.MultiStateView
 import com.ohuang.filemanager.WebActivity
+import com.ohuang.filemanager.bean.FileBean
 import com.ohuang.filemanager.config.Http
+import com.ohuang.filemanager.config.SpConfig
 import com.ohuang.filemanager.databinding.FragmentHomeBinding
 import com.ohuang.filemanager.util.ClipboardUtils
 import com.ohuang.refresh.OnRefreshListener
@@ -124,8 +126,7 @@ class HomeFragment : Fragment() {
                 if (fileBean!!.isFolder) {
                     homeViewModel.loadData(fileBean.name)
                 } else {
-                    var replace = fileBean.name.replace("/", "%2f")
-                    val s = Http.Main.Get() + "/?name=$replace"
+                    val s = getDownloadUrl(fileBean)
                     ClipboardUtils.copyText(s, context)
                     Toast.makeText(context, "链接已复制到粘贴板", Toast.LENGTH_SHORT).show()
                 }
@@ -135,14 +136,24 @@ class HomeFragment : Fragment() {
         }
         mAdapter?.itemClickListerner = { position ->
 
-            var fileBean = mAdapter!!.mData[position]
+            val fileBean = mAdapter!!.mData[position]
             if (fileBean!!.isFolder) {
                 homeViewModel.loadData(fileBean.name)
             } else {
-                var replace = fileBean.name.replace("/", "%2f")
-                val s = Http.Main.Get() + "/?name=$replace"
+                val s = getDownloadUrl(fileBean)
                 WebActivity.start(requireContext(), s)
             }
+        }
+    }
+
+    private fun getDownloadUrl(fileBean: FileBean): String {
+        if(SpConfig.getUseOldDownloadApi(requireContext())) {
+            val replace = fileBean.name.replace("/", "%2f")
+            val s = Http.Main.Get() + "/?name=$replace"
+            return s
+        }else{
+            val name = if (fileBean.name.startsWith("/")) fileBean.name.substring(1) else fileBean.name
+            return Http.Main.files()+"/"+name
         }
     }
 

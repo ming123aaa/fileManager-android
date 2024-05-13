@@ -35,7 +35,6 @@
         app:layout_constraintTop_toBottomOf="@id/btn_test" />
 
     <Button
-
         android:id="@+id/btn_default"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -67,11 +66,19 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="云端文本"
-        app:layout_constraintTop_toBottomOf="@id/btn_startMain" />    <Button
+        app:layout_constraintTop_toBottomOf="@id/btn_startMain" />
+
+    <Button
         android:id="@+id/btn_html"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="网页版"
         app:layout_constraintTop_toBottomOf="@id/btn_startText" />
 
+    <Button
+        android:id="@+id/btn_useOldApi"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="使用旧下载api"
+        app:layout_constraintTop_toBottomOf="@id/btn_html" />
 </androidx.constraintlayout.widget.ConstraintLayout>

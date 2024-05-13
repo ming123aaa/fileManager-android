@@ -31,7 +31,7 @@ class HomeViewModel : ViewModel() {
             }
             return
         }
-        var state=0 //0为所以文件  1为文件夹 2为文件
+        var state=0 //0为所有文件  1为文件夹 2为文件
         if (lowercase.startsWith("+")){
             state=1
         }

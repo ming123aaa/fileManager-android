@@ -44,6 +44,10 @@ public class Http {
             return getBaseUrl() + Parent + "/download";
         }
 
+
+        public static String files() {
+            return getBaseUrl() + Parent + "/files";
+        }
         /**
          * RequestParam("name")
          * @return
