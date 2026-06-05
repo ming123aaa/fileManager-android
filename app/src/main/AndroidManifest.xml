@@ -8,9 +8,18 @@
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+
+    <!-- 1. 前台服务基础权限（必须） -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+
+    <!-- 2. dataSync 类型专用权限（Android 14+ 必须） -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
+    <!-- 3. 通知权限（Android 13+ 如需显示进度，需运行时请求） -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".MyApp"
@@ -24,39 +33,30 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.FileManager"
         tools:targetApi="31">
+        
         <activity
-            android:name=".WebActivity"
-            android:exported="false"
-            android:configChanges="keyboardHidden|orientation|screenSize"
-            android:hardwareAccelerated="true"
-            android:screenOrientation="portrait"
-            android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
-            <meta-data
-                android:name="android.app.lib_name"
-                android:value="" />
-        </activity>
-
-        <service
-            android:name=".service.UploadService"
-            android:enabled="true"
-            android:foregroundServiceType="shortService"
-            android:exported="true" />
-
-        <activity android:name=".TextActivity" />
-        <activity
-            android:name=".FileActivity"
-            android:screenOrientation="portrait"
-            android:exported="true">
+            android:name=".MainComposeActivity"
+            android:exported="true"
+            android:screenOrientation="unspecified">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity
-            android:name=".MainActivity"
-            android:screenOrientation="portrait"
-            android:exported="true">
+
+
+        <activity android:name=".WebActivity"
+            android:exported="true"
+            android:screenOrientation="unspecified"
+            android:configChanges="screenSize|orientation|density|fontScale"
+            >
+
+        </activity>
+
+        <activity android:name=".ui.screens.UploadActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:configChanges="screenSize|orientation|density|fontScale">
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
 
@@ -65,6 +65,12 @@
                 <data android:mimeType="*/*" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name=".service.UploadService"
+            android:enabled="true"
+            android:foregroundServiceType="dataSync"
+            android:exported="true" />
     </application>
 
 </manifest>

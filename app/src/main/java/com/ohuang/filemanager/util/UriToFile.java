@@ -7,12 +7,12 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
-import android.os.FileUtils;
 import android.provider.DocumentsContract;
 import android.provider.MediaStore;
+import android.provider.OpenableColumns;
 import android.webkit.MimeTypeMap;
 
-import androidx.annotation.RequiresApi;
+import androidx.annotation.Nullable;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -21,107 +21,258 @@ import java.io.InputStream;
 
 public class UriToFile {
 
-    @RequiresApi(api = Build.VERSION_CODES.Q)
-    public static File uriToFileApiQ(Uri uri, Context context) {
-        File file = null;
-        if (uri == null) return file;
-        //android10以上转换
-        if (uri.getScheme().equals(ContentResolver.SCHEME_FILE)) {
-            file = new File(uri.getPath());
-        } else if (uri.getScheme().equals(ContentResolver.SCHEME_CONTENT)) {
-            //把文件复制到沙盒目录
-            ContentResolver contentResolver = context.getContentResolver();
-            String displayName = System.currentTimeMillis() + Math.round((Math.random() + 1) * 1000)
-                    + "." + MimeTypeMap.getSingleton().getExtensionFromMimeType(contentResolver.getType(uri));
+    /**
+     * 统一的 URI 转 File 方法，兼容所有 Android 版本
+     */
+    @Nullable
+    public static File uriToFile(Uri uri, Context context) {
+        if (uri == null) return null;
 
-//            注释掉的方法可以获取到原文件的文件名，但是比较耗时
-//            Cursor cursor = contentResolver.query(uri, null, null, null, null);
-//            if (cursor.moveToFirst()) {
-//                 displayName = cursor.getString(cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME));}
+        String scheme = uri.getScheme();
+        if (scheme == null) return null;
 
-            try {
-                InputStream is = contentResolver.openInputStream(uri);
-                File cache = new File(context.getCacheDir().getAbsolutePath(), displayName);
-                FileOutputStream fos = new FileOutputStream(cache);
-                FileUtils.copy(is, fos);
-                file = cache;
-                fos.close();
-                is.close();
-            } catch (IOException e) {
-                e.printStackTrace();
+        if (ContentResolver.SCHEME_FILE.equals(scheme)) {
+            String path = uri.getPath();
+            if (path != null) {
+                File file = new File(path);
+                if (file.exists()) return file;
             }
+            return null;
         }
-        return file;
+
+        if (ContentResolver.SCHEME_CONTENT.equals(scheme)) {
+            return contentUriToFile(uri, context);
+        }
+
+        return null;
     }
 
-
-    public static String getPath(Context context, Uri uri) {
-     if (uri.getScheme().equals(ContentResolver.SCHEME_FILE)) {
-            return uri.getPath();
+    /**
+     * 将 content:// URI 转换为本地文件
+     * 优先尝试直接获取文件路径，失败则复制到缓存目录
+     */
+    @Nullable
+    private static File contentUriToFile(Uri uri, Context context) {
+        // 尝试通过路径获取
+        String path = getPath(context, uri);
+        if (path != null) {
+            File file = new File(path);
+            if (file.exists() && file.length() > 0) {
+                return file;
+            }
         }
-     String path = null;
 
-        // 4.4及之后的 是以 content:// 开头的，比如 content://com.android.providers.media.documents/document/image%3A235700
-        if (ContentResolver.SCHEME_CONTENT.equals(uri.getScheme()) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            if (DocumentsContract.isDocumentUri(context, uri)) {
-                if (isExternalStorageDocument(uri)) {
-                    // ExternalStorageProvider
-                    final String docId = DocumentsContract.getDocumentId(uri);
-                    final String[] split = docId.split(":");
-                    final String type = split[0];
-                    if ("primary".equalsIgnoreCase(type)) {
-                        path = Environment.getExternalStorageDirectory() + "/" + split[1];
-                        return path;
+        // 降级方案：复制到缓存目录
+        return copyToCache(uri, context);
+    }
+
+    /**
+     * 将 content:// URI 的内容复制到缓存目录
+     */
+    @Nullable
+    private static File copyToCache(Uri uri, Context context) {
+        ContentResolver resolver = context.getContentResolver();
+        String fileName = getFileName(resolver, uri);
+        if (fileName == null) {
+            String ext = getExtensionFromUri(resolver, uri);
+            fileName = System.currentTimeMillis() + "_" + (int) (Math.random() * 10000);
+            if (ext != null) {
+                fileName += "." + ext;
+            }
+        }
+
+        InputStream is = null;
+        FileOutputStream fos = null;
+        try {
+            is = resolver.openInputStream(uri);
+            if (is == null) return null;
+
+            File cacheDir = new File(context.getCacheDir(), "upload_cache");
+            if (!cacheDir.exists()) cacheDir.mkdirs();
+            File destFile = new File(cacheDir, fileName);
+
+            fos = new FileOutputStream(destFile);
+            byte[] buffer = new byte[8192];
+            int len;
+            while ((len = is.read(buffer)) != -1) {
+                fos.write(buffer, 0, len);
+            }
+            fos.flush();
+            return destFile;
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        } finally {
+            closeQuietly(is);
+            closeQuietly(fos);
+        }
+    }
+
+    /**
+     * 从 content:// URI 中获取文件名
+     */
+    @Nullable
+    private static String getFileName(ContentResolver resolver, Uri uri) {
+        Cursor cursor = null;
+        try {
+            cursor = resolver.query(uri, null, null, null, null);
+            if (cursor != null && cursor.moveToFirst()) {
+                int index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                if (index >= 0) {
+                    String name = cursor.getString(index);
+                    if (name != null && !name.isEmpty()) {
+                        return name;
                     }
-                } else if (isDownloadsDocument(uri)) {
-                    // DownloadsProvider
-                    final String id = DocumentsContract.getDocumentId(uri);
-                    final Uri contentUri = ContentUris.withAppendedId(Uri.parse("content://downloads/public_downloads"),
-                            Long.parseLong(id));
-                    path = getDataColumn(context, contentUri, null, null);
-                    return path;
-                } else if (isMediaDocument(uri)) {
-                    // MediaProvider
-                    final String docId = DocumentsContract.getDocumentId(uri);
-                    final String[] split = docId.split(":");
-                    final String type = split[0];
-                    Uri contentUri = null;
-                    if ("image".equals(type)) {
-                        contentUri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
-                    } else if ("video".equals(type)) {
-                        contentUri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
-                    } else if ("audio".equals(type)) {
-                        contentUri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI;
-                    }
-                    final String selection = "_id=?";
-                    final String[] selectionArgs = new String[]{split[1]};
-                    path = getDataColumn(context, contentUri, selection, selectionArgs);
-                    return path;
                 }
             }
-        }
-
-        return null;
-    }
-
-
-    private static String getDataColumn(Context context, Uri uri, String selection, String[] selectionArgs) {
-        Cursor cursor = null;
-        final String column = "_data";
-        final String[] projection = {column};
-        try {
-            cursor = context.getContentResolver().query(uri, projection, selection, selectionArgs, null);
-            if (cursor != null && cursor.moveToFirst()) {
-                final int column_index = cursor.getColumnIndexOrThrow(column);
-                return cursor.getString(column_index);
-            }
+        } catch (Exception e) {
+            // ignore
         } finally {
-            if (cursor != null)
-                cursor.close();
+            closeQuietly(cursor);
         }
         return null;
     }
-    
+
+    /**
+     * 从 URI 的 MIME type 推断文件扩展名
+     */
+    @Nullable
+    private static String getExtensionFromUri(ContentResolver resolver, Uri uri) {
+        try {
+            String mimeType = resolver.getType(uri);
+            if (mimeType != null) {
+                return MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType);
+            }
+        } catch (Exception e) {
+            // ignore
+        }
+        return null;
+    }
+
+    /**
+     * 通过 content:// URI 获取文件的真实路径
+     * 注意：Android 10+ 大部分 content:// URI 无法直接获取路径，返回 null
+     */
+    @Nullable
+    public static String getPath(Context context, Uri uri) {
+        if (uri == null || uri.getScheme() == null) return null;
+
+        if (ContentResolver.SCHEME_FILE.equals(uri.getScheme())) {
+            return uri.getPath();
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT
+                && DocumentsContract.isDocumentUri(context, uri)) {
+            return getDocumentPath(context, uri);
+        }
+
+        if (ContentResolver.SCHEME_CONTENT.equals(uri.getScheme())) {
+            return getContentPath(context, uri);
+        }
+
+        return null;
+    }
+
+    /**
+     * 处理 Document URI（4.4+）
+     */
+    @Nullable
+    private static String getDocumentPath(Context context, Uri uri) {
+        String authority = uri.getAuthority();
+        if (authority == null) return null;
+
+        if (isExternalStorageDocument(uri)) {
+            String docId = DocumentsContract.getDocumentId(uri);
+            String[] parts = docId.split(":");
+            if (parts.length < 2) return null;
+            if ("primary".equalsIgnoreCase(parts[0])) {
+                return Environment.getExternalStorageDirectory() + "/" + parts[1];
+            }
+        } else if (isDownloadsDocument(uri)) {
+            String id = DocumentsContract.getDocumentId(uri);
+            if (id == null) return null;
+            try {
+                // 尝试直接解析为数字 ID
+                long longId = Long.parseLong(id);
+                Uri contentUri = ContentUris.withAppendedId(
+                        Uri.parse("content://downloads/public_downloads"), longId);
+                return getDataColumn(context, contentUri, null, null);
+            } catch (NumberFormatException e) {
+                // 某些下载管理器返回的是 content:// URI 路径
+                if (id.startsWith("raw:")) {
+                    return id.substring(4);
+                }
+                if (id.startsWith("content://")) {
+                    return getDataColumn(context, Uri.parse(id), null, null);
+                }
+            }
+        } else if (isMediaDocument(uri)) {
+            String docId = DocumentsContract.getDocumentId(uri);
+            if (docId == null) return null;
+            String[] parts = docId.split(":");
+            if (parts.length < 2) return null;
+            Uri contentUri = getMediaContentUri(parts[0]);
+            if (contentUri != null) {
+                return getDataColumn(context, contentUri, "_id=?", new String[]{parts[1]});
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 处理普通 content:// URI
+     */
+    @Nullable
+    private static String getContentPath(Context context, Uri uri) {
+        if (isGooglePhotosUri(uri)) {
+            return uri.getLastPathSegment();
+        }
+        return getDataColumn(context, uri, null, null);
+    }
+
+    @Nullable
+    private static Uri getMediaContentUri(String type) {
+        switch (type) {
+            case "image":
+                return MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
+            case "video":
+                return MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
+            case "audio":
+                return MediaStore.Audio.Media.EXTERNAL_CONTENT_URI;
+            default:
+                return null;
+        }
+    }
+
+    @Nullable
+    private static String getDataColumn(Context context, Uri uri,
+                                        String selection, String[] selectionArgs) {
+        Cursor cursor = null;
+        try {
+            cursor = context.getContentResolver().query(
+                    uri, new String[]{"_data"}, selection, selectionArgs, null);
+            if (cursor != null && cursor.moveToFirst()) {
+                int index = cursor.getColumnIndex("_data");
+                if (index >= 0) {
+                    return cursor.getString(index);
+                }
+            }
+        } catch (Exception e) {
+            // ignore
+        } finally {
+            closeQuietly(cursor);
+        }
+        return null;
+    }
+
+    private static void closeQuietly(AutoCloseable closeable) {
+        if (closeable != null) {
+            try {
+                closeable.close();
+            } catch (Exception ignored) {
+            }
+        }
+    }
 
     private static boolean isExternalStorageDocument(Uri uri) {
         return "com.android.externalstorage.documents".equals(uri.getAuthority());
@@ -135,4 +286,7 @@ public class UriToFile {
         return "com.android.providers.media.documents".equals(uri.getAuthority());
     }
 
+    private static boolean isGooglePhotosUri(Uri uri) {
+        return "com.google.android.apps.photos.content".equals(uri.getAuthority());
+    }
 }

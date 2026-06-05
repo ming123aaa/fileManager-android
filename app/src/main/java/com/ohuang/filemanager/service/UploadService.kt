@@ -10,38 +10,40 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.MutableLiveData
-
-
 import com.ohuang.filemanager.R
-import com.ohuang.filemanager.config.Http
+import com.ohuang.filemanager.data.ApiService
+import com.ohuang.filemanager.statedata.StateData
 import com.ohuang.filemanager.util.UriToFile
+import com.ohuang.kthttp.call.HttpCall
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
-
-import rxhttp.wrapper.param.RxHttp
-import rxhttp.wrapper.param.toObservable
-
 import java.io.File
-import java.lang.Exception
+import kotlin.jvm.Throws
 
 class UploadService : Service() {
     override fun onCreate() {
         super.onCreate()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            notifaction() //启动前台通知
+            notifaction()
+            liveData.observeForever {
+                if (it.isNotEmpty()){
+                    showProgress(it)
+                }
+            }
         }
     }
 
-
-    //通知
     private val CHANNEL_ID2 = "Channel2"
     var notifId_1 = 0x1
     var binder = DownUpBinder()
-    var liveData = MutableLiveData<String>()
+    var liveData = MutableLiveData<String>("")
+    var isUploading: StateData<Boolean> = StateData(false)
 
-    //通知
+    var call: HttpCall<String>?= null
+
     private fun notifaction() {
-        createNotificationChannel() //创建通道
+        createNotificationChannel()
         val repliedNotification = NotificationCompat.Builder(this, CHANNEL_ID2)
         repliedNotification.setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentText("当前没有要上传的任务").setContentTitle("上传进度")
@@ -49,44 +51,45 @@ class UploadService : Service() {
         startForeground(notifId_1, notification)
     }
 
-    private fun showProgress(i: String) {
+    private fun showProgress(text: String) {
         val repliedNotification = NotificationCompat.Builder(this, CHANNEL_ID2)
         repliedNotification.setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentText(i).setContentTitle("上传进度")
+            .setContentText(text).setContentTitle("上传进度")
         val notification = repliedNotification.build()
         startForeground(notifId_1, notification)
     }
 
-    //通知通道注册
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val importance = NotificationManager.IMPORTANCE_DEFAULT
             val channel = NotificationChannel(CHANNEL_ID2, "显示上传进度", importance)
-            channel.importance = NotificationManager.IMPORTANCE_HIGH //重要性
+            channel.importance = NotificationManager.IMPORTANCE_HIGH
             channel.enableLights(false)
             channel.setSound(null, null)
             channel.enableVibration(false)
-            val notificationManager = getSystemService(
-                NotificationManager::class.java
-            )
+            val notificationManager = getSystemService(NotificationManager::class.java)
             notificationManager.createNotificationChannel(channel)
         }
     }
 
     inner class DownUpBinder : Binder() {
-        fun startUpLoad(uri: Uri) {
-            if (!isUploading) {
-                upload2(uri)
-                isUploading = true
-
+        fun startUpLoad(uri: Uri,path: String) {
+            isUploading.value?.let {
+                if (!it) {
+                    upload(uri,path)
+                }
             }
+        }
+
+        fun stopUpLoad(){
+            call?.cancel()
         }
 
         fun isUpload() = isUploading
 
+
+
         fun getLivedata() = liveData
-
-
     }
 
     override fun onBind(intent: Intent): IBinder {
@@ -95,48 +98,58 @@ class UploadService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        stopForeground(true)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        }
     }
 
-    var isUploading = false
-
-    fun upload2(fileUri: Uri) {
-        rxhttpUpload(fileUri)
+    fun Number.toFixed(): String{
+        return "%.2f".format(this@toFixed)
     }
 
-    private fun rxhttpUpload(fileUri: Uri) {
-        GlobalScope.launch {
+    fun upload(fileUri: Uri,path: String) {
+        isUploading.value = true
+        showProgress("正在准备上传")
+        liveData.postValue("正在准备上传")
+
+        GlobalScope.launch(Dispatchers.IO) {
+
+            var file: File? =null
+            try {
+                file = UriToFile.uriToFile(fileUri, this@UploadService)
+            } catch (e: Throwable) {
+                e.printStackTrace()
+            }
+            if (file == null) {
+                isUploading.postValue(false)
+                showProgress("获取文件失败,请检查权限和文件")
+                liveData.postValue("获取文件失败,请检查权限和文件")
+                return@launch
+            }
+
+            call= ApiService.uploadFile(file,path) { current, total ->
+                val s = "${(current / (1024 * 1024 * 1.0f)).toFixed()}MB/${(total / (1024 * 1024 * 1.0f)).toFixed()}MB"
+                val progress = "上传中:${(current * 100 / total)}%  $s"
+                liveData.postValue(progress)
 
 
-            showProgress("正在准备上传")
-            liveData.postValue("正在准备上传")
-            RxHttp.postForm(Http.Main.FileUpload())
-                .addPart(this@UploadService, "fileName", fileUri)
-                .toObservable<String>()
-                .onMainProgress {//this为当前协程CoroutineScope对象，用于控制回调线程
-                    //上传进度回调,0-100，仅在进度有更新时才会回调
-                    val currentProgress = it.progress //当前进度 0-100
-                    val currentSize = it.currentSize  //当前已上传的字节大小
-                    val totalSize = it.totalSize
-                    val s =
-                        "" + (currentSize / (1024 * 1024 * 1.0f)) + "MB/" + (totalSize / (1024 * 1024 * 1.0f)) + "MB"
-                    val progress = "当前进度为$currentProgress%  $s"
-                    showProgress(progress)
-                    liveData.postValue(progress)
-                }.subscribe({
-                    showProgress("上传任务完成")
+            }
+            call?.request({ error ->
+                call=null
+                GlobalScope.launch(Dispatchers.Main) {
+                    isUploading.postValue(false)
+                    liveData.postValue("上传失败: ${error.message}")
+                }
+            }) { _ ->
+                call=null
+                GlobalScope.launch(Dispatchers.Main) {
                     liveData.postValue("上传任务完成")
-                    isUploading = false
-                }, {
-                    isUploading = false
-                    showProgress("上传失败" + it)
-                    liveData.postValue("上传失败" + it)
-                })
-
-
+                    isUploading.value = false
+                }
+            }
         }
 
+
+
     }
-
-
 }
