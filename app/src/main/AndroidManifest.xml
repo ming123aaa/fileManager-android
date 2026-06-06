@@ -37,7 +37,8 @@
         <activity
             android:name=".MainComposeActivity"
             android:exported="true"
-            android:screenOrientation="unspecified">
+            android:screenOrientation="unspecified"
+            android:windowSoftInputMode="adjustPan|stateHidden">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -47,7 +48,7 @@
 
         <activity android:name=".WebActivity"
             android:exported="true"
-            android:screenOrientation="unspecified"
+
             android:configChanges="screenSize|orientation|density|fontScale"
             >
 

@@ -34,6 +34,7 @@ fun FileCard(
     onContextMenuDismiss: () -> Unit = {},
     onOpen: (FileItem) -> Unit = {},
     onPreview: (FileItem) -> Unit = {},
+    onEditString: (FileItem) -> Unit = {},
     onDownload: (FileItem) -> Unit = {},
     onRename: (FileItem) -> Unit = {},
     onMove: (FileItem) -> Unit = {},
@@ -44,7 +45,7 @@ fun FileCard(
     Box {
         Card(
             modifier = Modifier
-                .animateContentSize()
+
                 .fillMaxWidth()
 
                 .combinedClickable(
@@ -52,54 +53,54 @@ fun FileCard(
                     onLongClick = onLongClick
                 )
                 .padding(4.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer 
-                            else MaterialTheme.colorScheme.surface
-        )
-    ) {
-        Column(
-            modifier = Modifier
-                .padding(8.dp)
-                .fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.surface
+            )
         ) {
-            FileIcon(file = file, size = 48.dp)
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            Text(
-                text = file.getFileName(),
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontWeight = if (file.isFolder) FontWeight.Medium else FontWeight.Normal
-                ),
-                color = if (file.isFolder) Color(0xFFF59E0B) else MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth()
-            )
-            
-            Spacer(modifier = Modifier.height(4.dp))
-            
-            Text(
-                text = file.formatSize(),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
-            
-            Spacer(modifier = Modifier.height(2.dp))
-            
-            Text(
-                text = file.formatDate(),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
+            Column(
+                modifier = Modifier
+                    .padding(8.dp)
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                FileIcon(file = file, size = 48.dp)
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = file.getFileName(),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = if (file.isFolder) FontWeight.Medium else FontWeight.Normal
+                    ),
+                    color = if (file.isFolder) Color(0xFFF59E0B) else MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = file.formatSize(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(2.dp))
+
+                Text(
+                    text = file.formatDate(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+            }
         }
-    }
 
         // 上下文菜单 —— 放在 Box 内以锚定到当前卡片位置
         DropdownMenu(
@@ -112,8 +113,10 @@ fun FileCard(
                     text = { Text("打开") },
                     onClick = { onOpen(file) },
                     leadingIcon = {
-                        Icon(Icons.Default.FolderOpen, contentDescription = null,
-                            tint = Color(0xFFF59E0B))
+                        Icon(
+                            Icons.Default.FolderOpen, contentDescription = null,
+                            tint = Color(0xFFF59E0B)
+                        )
                     }
                 )
                 DropdownMenuItem(
@@ -124,20 +127,31 @@ fun FileCard(
                     }
                 )
                 DropdownMenuItem(
-                    text = { Text("在新标签页打开") },
+                    text = { Text("在浏览器打开") },
                     onClick = { onOpenInNew(file) },
                     leadingIcon = {
                         Icon(Icons.Default.OpenInNew, contentDescription = null)
                     }
                 )
             } else {
-                DropdownMenuItem(
-                    text = { Text("预览") },
-                    onClick = { onPreview(file) },
-                    leadingIcon = {
-                        Icon(Icons.Default.Visibility, contentDescription = null)
-                    }
-                )
+                if (FileType.isPreViewType(file.name)) {
+                    DropdownMenuItem(
+                        text = { Text("预览") },
+                        onClick = { onPreview(file) },
+                        leadingIcon = {
+                            Icon(Icons.Default.Visibility, contentDescription = null)
+                        }
+                    )
+                }
+                if (FileType.isEditStringType(file.name)) {
+                    DropdownMenuItem(
+                        text = { Text("编辑") },
+                        onClick = { onEditString(file) },
+                        leadingIcon = {
+                            Icon(Icons.Default.EditNote, contentDescription = null)
+                        }
+                    )
+                }
                 DropdownMenuItem(
                     text = { Text("下载") },
                     onClick = { onDownload(file) },
@@ -153,7 +167,7 @@ fun FileCard(
                     }
                 )
                 DropdownMenuItem(
-                    text = { Text("在新标签页打开") },
+                    text = { Text("在浏览器打开") },
                     onClick = { onOpenInNew(file) },
                     leadingIcon = {
                         Icon(Icons.Default.OpenInNew, contentDescription = null)
@@ -185,8 +199,10 @@ fun FileCard(
                 text = { Text("删除") },
                 onClick = { onDelete(file) },
                 leadingIcon = {
-                    Icon(Icons.Default.Delete, contentDescription = null,
-                        tint = Color.Red)
+                    Icon(
+                        Icons.Default.Delete, contentDescription = null,
+                        tint = Color.Red
+                    )
                 }
             )
         }

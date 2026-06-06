@@ -2,8 +2,10 @@ package com.ohuang.filemanager.ui.components
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.ExperimentalMaterialApi
@@ -29,10 +31,12 @@ fun FileList(
     files: List<FileItem>,
     selectedFile: FileItem?,
     onFileClick: (FileItem) -> Unit,
+    lazyGridState: LazyGridState = rememberLazyGridState(),
     gridColumns: Int = 2,
     isRefreshing: Boolean = false,
     onRefresh: () -> Unit = {},
     onPreview: (FileItem) -> Unit = {},
+    onEditString: (FileItem) -> Unit = {},
     onDownload: (FileItem) -> Unit = {},
     onRename: (FileItem) -> Unit = {},
     onDelete: (FileItem) -> Unit = {},
@@ -62,7 +66,8 @@ fun FileList(
         LazyVerticalGrid(
             columns = GridCells.Fixed(gridColumns),
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(4.dp)
+            contentPadding = PaddingValues(4.dp),
+            state = lazyGridState
         ) {
             items(files) { file ->
                 FileCard(
@@ -84,6 +89,10 @@ fun FileList(
                     onPreview = { f ->
                         contextMenuFile = null
                         onPreview(f)
+                    },
+                    onEditString = { f ->
+                        contextMenuFile = null
+                        onEditString(f)
                     },
                     onDownload = { f ->
                         contextMenuFile = null

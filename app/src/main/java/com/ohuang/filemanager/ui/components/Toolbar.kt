@@ -186,10 +186,16 @@ fun SortSelector(
             }
 
             // 点击箭头切换排序方向
-            IconButton(
+            TextButton(
                 onClick = onSortDirectionChanged,
-                modifier = Modifier.size(32.dp)
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
             ) {
+                Text(
+                    text = if (sortDirection == SortDirection.ASC) "顺序"
+                    else "倒序",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
                 Icon(
                     imageVector = if (sortDirection == SortDirection.ASC) Icons.Default.ArrowUpward
                                  else Icons.Default.ArrowDownward,

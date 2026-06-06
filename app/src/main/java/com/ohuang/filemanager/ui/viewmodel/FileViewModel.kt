@@ -1,15 +1,30 @@
 package com.ohuang.filemanager.ui.viewmodel
 
 import android.content.Context
+import android.widget.Toast
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ohuang.filemanager.data.ApiService
 import com.ohuang.filemanager.data.FileItem
 import com.ohuang.filemanager.util.SPUtil
 import com.ohuang.kthttp.call.awaitOrNull
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+
+// 文件夹树节点数据类
+data class FolderTreeNode(
+    val path: String,
+    val name: String,
+    val isExpanded: Boolean = false,
+    val isLoading: Boolean = false,
+    val children: List<FolderTreeNode> = emptyList(),
+    val hasSubfolders: Boolean? = null
+)
 
 class FileViewModel : ViewModel() {
     private val _files = MutableStateFlow<List<FileItem>>(emptyList())
@@ -54,11 +69,13 @@ class FileViewModel : ViewModel() {
     private val _showMoveDialog = MutableStateFlow(false)
     val showMoveDialog: StateFlow<Boolean> = _showMoveDialog
 
-    private val _showPreviewDialog = MutableStateFlow(false)
-    val showPreviewDialog: StateFlow<Boolean> = _showPreviewDialog
+
 
     private val _showEditDialog = MutableStateFlow(false)
     val showEditDialog: StateFlow<Boolean> = _showEditDialog
+
+    private val _showDownloadDialog = MutableStateFlow(false)
+    val showDownloadDialog: StateFlow<Boolean> = _showDownloadDialog
 
     private val _previewFile = MutableStateFlow<FileItem?>(null)
     val previewFile: StateFlow<FileItem?> = _previewFile
@@ -75,10 +92,39 @@ class FileViewModel : ViewModel() {
     private val _editFileContent = MutableStateFlow("")
     val editFileContent: StateFlow<String> = _editFileContent
 
+    private val _downloadFile = MutableStateFlow<FileItem?>(null)
+    val downloadFile: StateFlow<FileItem?> = _downloadFile
+
+    // 移动对话框相关状态
+    private val _moveTargetPath = MutableStateFlow("")
+    val moveTargetPath: StateFlow<String> = _moveTargetPath
+
+    private val _folderTree = MutableStateFlow<List<FolderTreeNode>>(emptyList())
+    val folderTree: StateFlow<List<FolderTreeNode>> = _folderTree
+
     private var allFiles: List<FileItem> = emptyList()
+
+
+    private var mLazyGridStateMap: SnapshotStateMap<String, LazyGridState> = mutableStateMapOf("" to LazyGridState())
 
     init {
         loadFiles()
+    }
+
+    fun getLazyGridState():LazyGridState{
+        val path=_currentPath.value
+        val lazyGridState= if (mLazyGridStateMap.contains(path)){
+            mLazyGridStateMap[path]!!
+        }else{
+            LazyGridState().apply {
+                mLazyGridStateMap[path]=this@apply
+            }
+        }
+        val removeKeys=mLazyGridStateMap.filterKeys {  it.isNotBlank()&&!path.startsWith(it) }.map { it.key }
+        removeKeys.forEach {
+            mLazyGridStateMap.remove(it)
+        }
+        return lazyGridState
     }
 
     fun loadFiles(path: String = "") {
@@ -86,9 +132,11 @@ class FileViewModel : ViewModel() {
         _errorMessage.value = null
 
         viewModelScope.launch {
+
             val data = ApiService.getAllFiles(path).awaitOrNull { error ->
                 _errorMessage.value = error.message ?: "未知错误"
             }
+
 
             _isLoading.value = false
             if (data != null) {
@@ -280,6 +328,12 @@ class FileViewModel : ViewModel() {
     }
 
     fun readFileContent(file: FileItem) {
+        if (file.isWithinTextEditorLimit()){  //超出文本编辑的大小
+            viewModelScope.launch {
+                showToastMessage("文件过大,无法编辑")
+            }
+            return
+        }
         _isLoading.value = true
 
         val fullPath = if (_currentPath.value.isEmpty()) file.name
@@ -294,8 +348,9 @@ class FileViewModel : ViewModel() {
             _isLoading.value = false
 
             if (content != null) {
-                _editFileContent.value = content
                 _previewFile.value = file
+                _editFileContent.value = content
+
                 _showEditDialog.value = true
             }
         }
@@ -373,27 +428,146 @@ class FileViewModel : ViewModel() {
 
     fun showMoveDialog(file: FileItem) {
         _moveFile.value = file
+        _moveTargetPath.value = ""
         _showMoveDialog.value = true
+        loadFolderTree("")
     }
 
     fun hideMoveDialog() {
         _showMoveDialog.value = false
         _moveFile.value = null
+        _moveTargetPath.value = ""
+        _folderTree.value = emptyList()
     }
 
-    fun showPreviewDialog(file: FileItem) {
-        _previewFile.value = file
-        _showPreviewDialog.value = true
+    fun setMoveTargetPath(path: String) {
+        _moveTargetPath.value = path
     }
 
-    fun hidePreviewDialog() {
-        _showPreviewDialog.value = false
-        _previewFile.value = null
+    // 加载文件夹树
+    fun loadFolderTree(dirPath: String) {
+        viewModelScope.launch {
+            val data = ApiService.getAllFiles(dirPath).awaitOrNull() ?: emptyList()
+            val folders = data.filter { it.isFolder }
+
+            if (dirPath.isEmpty()) {
+                // 根目录
+                val rootNode = FolderTreeNode(
+                    path = "",
+                    name = "根目录",
+                    isExpanded = true,
+                    children = folders.map { f ->
+                        val fullPath = f.name
+                        FolderTreeNode(
+                            path = fullPath,
+                            name = f.name
+                        )
+                    }
+                )
+                _folderTree.value = listOf(rootNode)
+            } else {
+                // 非根目录，更新对应节点的子节点
+                updateFolderTreeWithChildren(dirPath, folders)
+            }
+        }
+    }
+
+    // 切换文件夹展开/折叠
+    fun toggleFolder(node: FolderTreeNode) {
+        viewModelScope.launch {
+            val currentTree = _folderTree.value.toMutableList()
+            updateNodeInTree(currentTree, node.path) { existingNode ->
+                val newNode = if (existingNode.isExpanded) {
+                    existingNode.copy(isExpanded = false)
+                } else {
+                    existingNode.copy(isExpanded = true, isLoading = true)
+                }
+                newNode
+            }
+            _folderTree.value = currentTree.toList()
+
+            if (!node.isExpanded) {
+                // 需要加载子文件夹
+                val data = ApiService.getAllFiles(node.path).awaitOrNull() ?: emptyList()
+                val folders = data.filter { it.isFolder }
+
+                val updatedTree = _folderTree.value.toMutableList()
+                updateNodeInTree(updatedTree, node.path) { existingNode ->
+                    existingNode.copy(
+                        isExpanded = true,
+                        isLoading = false,
+                        hasSubfolders = folders.isNotEmpty(),
+                        children = folders.map { f ->
+                            val fullPath = if (node.path.isEmpty()) f.name else "${node.path}/${f.name}"
+                            FolderTreeNode(
+                                path = fullPath,
+                                name = f.name
+                            )
+                        }
+                    )
+                }
+                _folderTree.value = updatedTree.toList()
+            }
+        }
+    }
+
+    // 递归更新树中的节点
+    private fun updateNodeInTree(
+        tree: MutableList<FolderTreeNode>,
+        targetPath: String,
+        updater: (FolderTreeNode) -> FolderTreeNode
+    ): Boolean {
+        for (i in tree.indices) {
+            if (tree[i].path == targetPath) {
+                tree[i] = updater(tree[i])
+                return true
+            }
+            if (tree[i].children.isNotEmpty()) {
+                val childrenList = tree[i].children.toMutableList()
+                if (updateNodeInTree(childrenList, targetPath, updater)) {
+                    tree[i] = tree[i].copy(children = childrenList.toList())
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    // 更新文件夹树的子节点
+    private fun updateFolderTreeWithChildren(dirPath: String, folders: List<FileItem>) {
+        val currentTree = _folderTree.value.toMutableList()
+        updateNodeInTree(currentTree, dirPath) { existingNode ->
+            existingNode.copy(
+                hasSubfolders = folders.isNotEmpty(),
+                children = folders.map { f ->
+                    val fullPath = if (dirPath.isEmpty()) f.name else "$dirPath/${f.name}"
+                    FolderTreeNode(
+                        path = fullPath,
+                        name = f.name
+                    )
+                }
+            )
+        }
+        _folderTree.value = currentTree.toList()
+    }
+
+
+
+
+    fun showDownloadDialog(file: FileItem) {
+        _downloadFile.value = file
+        _showDownloadDialog.value = true
+    }
+
+    fun hideDownloadDialog() {
+        _showDownloadDialog.value = false
+        _downloadFile.value = null
     }
 
     fun hideEditDialog() {
         _showEditDialog.value = false
         _previewFile.value = null
+        _editFileContent.value = ""
     }
 
     fun showToastMessage(message: String) {

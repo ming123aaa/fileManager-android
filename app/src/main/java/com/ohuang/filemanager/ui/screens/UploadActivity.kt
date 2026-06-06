@@ -52,6 +52,9 @@ class UploadActivity : ComponentActivity() {
             binder = service as UploadService.DownUpBinder
             binder?.getLivedata()?.observe(this@UploadActivity) {
                 progressData.value = it
+                if (it == "上传任务完成") {
+                    setResult(RESULT_OK)
+                }
             }
             binder?.isUpload()?.addObserverForSticky(this@UploadActivity) {
                 isUpLoading.value = it
@@ -202,7 +205,8 @@ private fun UploadScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(24.dp),
+                .padding(24.dp)
+                .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {

@@ -10,12 +10,14 @@ enum class FileType(val icon: androidx.compose.ui.graphics.vector.ImageVector, v
     VIDEO(Icons.Default.Movie, Color(0xFF9B59B6)),
     AUDIO(Icons.Default.Audiotrack, Color(0xFFF39C12)),
     TEXT(Icons.Default.Description, Color(0xFF3498DB)),
+    HTML(Icons.Default.Html, Color(0xFF3498DB)),
     CODE(Icons.Default.Code, Color(0xFF27AE60)),
     DOC(Icons.Default.Article, Color(0xFF2980B9)),
     PDF(Icons.Default.PictureAsPdf, Color(0xFFE74C3C)),
     ZIP(Icons.Default.FolderZip, Color(0xFFF39C12)),
     EXE(Icons.Default.Settings, Color(0xFF7F8C8D)),
     OTHER(Icons.Default.InsertDriveFile, Color(0xFF7F8C8D));
+
 
     companion object {
         private val EXTENSION_MAP = mapOf(
@@ -28,9 +30,9 @@ enum class FileType(val icon: androidx.compose.ui.graphics.vector.ImageVector, v
             "ogg" to AUDIO, "wma" to AUDIO, "m4a" to AUDIO,
             "md" to TEXT, "txt" to TEXT, "log" to TEXT, "csv" to TEXT,
             "json" to TEXT, "xml" to TEXT, "yaml" to TEXT, "yml" to TEXT,
-            "ini" to TEXT, "cfg" to TEXT, "conf" to TEXT, "properties" to TEXT,
+            "ini" to TEXT, "cfg" to TEXT, "conf" to TEXT, "html" to HTML, "properties" to TEXT,
             "gitignore" to CODE, "kt" to CODE, "java" to CODE, "py" to CODE,
-            "js" to CODE, "ts" to CODE, "html" to CODE, "css" to CODE,
+            "js" to CODE, "ts" to CODE, "css" to CODE,
             "php" to CODE, "c" to CODE, "cpp" to CODE, "h" to CODE,
             "go" to CODE, "rs" to CODE, "rb" to CODE, "sh" to CODE,
             "bat" to CODE, "sql" to CODE, "vue" to CODE, "jsx" to CODE,
@@ -48,6 +50,23 @@ enum class FileType(val icon: androidx.compose.ui.graphics.vector.ImageVector, v
             if (name.isEmpty()) return OTHER
             val ext = name.split(".").lastOrNull()?.lowercase() ?: return OTHER
             return EXTENSION_MAP[ext] ?: OTHER
+        }
+
+        fun isPreViewType(name: String): Boolean {
+            return listOf(
+                FileType.IMAGE,
+                FileType.VIDEO,
+                FileType.AUDIO,
+                FileType.HTML
+            ).contains(getFileType(name))
+        }
+
+        fun isEditStringType(name: String): Boolean {
+            return listOf(
+                FileType.TEXT,
+                FileType.HTML,
+                FileType.CODE,
+            ).contains(getFileType(name))
         }
     }
 }

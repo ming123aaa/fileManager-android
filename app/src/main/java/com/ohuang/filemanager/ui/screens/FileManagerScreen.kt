@@ -7,7 +7,12 @@ import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
@@ -30,10 +35,13 @@ import com.ohuang.filemanager.ui.utils.rememberDeviceType
 import com.ohuang.filemanager.ui.utils.rememberGridColumns
 import com.ohuang.filemanager.ui.viewmodel.FileViewModel
 import com.ohuang.filemanager.util.SPUtil
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FileManagerScreen(navController: NavController, onBack: () -> Unit = {},goSetting:()-> Unit) {
+fun FileManagerScreen(
+    navController: NavController, onBack: () -> Unit = {}, goSetting: () -> Unit
+) {
     val viewModel: FileViewModel = viewModel()
     val context = LocalContext.current
     val deviceType = rememberDeviceType()
@@ -51,6 +59,15 @@ fun FileManagerScreen(navController: NavController, onBack: () -> Unit = {},goSe
     val errorMessage by viewModel.errorMessage.collectAsState()
     val showToast by viewModel.showToast.collectAsState()
 
+    // 上传结果处理：上传成功后刷新文件列表
+    val uploadLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            viewModel.loadFiles(currentPath)
+        }
+    }
+
     // 下拉刷新状态：加载完成时自动结束刷新动画
     var isRefreshing by remember { mutableStateOf(false) }
     LaunchedEffect(isLoading) {
@@ -59,9 +76,10 @@ fun FileManagerScreen(navController: NavController, onBack: () -> Unit = {},goSe
         }
     }
     BackHandler {
-        if (viewModel.currentPath.value.isNotEmpty()){
+
+        if (viewModel.currentPath.value.isNotEmpty()) {
             viewModel.goUp()
-        }   else{
+        } else {
             onBack()
         }
 
@@ -71,17 +89,25 @@ fun FileManagerScreen(navController: NavController, onBack: () -> Unit = {},goSe
     val showRenameDialog by viewModel.showRenameDialog.collectAsState()
     val showDeleteDialog by viewModel.showDeleteDialog.collectAsState()
     val showMoveDialog by viewModel.showMoveDialog.collectAsState()
+    val showDownloadDialog by viewModel.showDownloadDialog.collectAsState()
+    val showEditDialog by viewModel.showEditDialog.collectAsState()
 
     val renameFile by viewModel.renameFile.collectAsState()
     val deleteFile by viewModel.deleteFile.collectAsState()
     val moveFile by viewModel.moveFile.collectAsState()
+    val downloadFile by viewModel.downloadFile.collectAsState()
+    val previewFile by viewModel.previewFile.collectAsState()
+    val editFileContent by viewModel.editFileContent.collectAsState()
+    val moveTargetPath by viewModel.moveTargetPath.collectAsState()
+    val folderTree by viewModel.folderTree.collectAsState()
+    val  searchQuery by viewModel.searchQuery.collectAsState()
 
     Scaffold(
         topBar = {
             SmallTopAppBar(
                 title = {
                     OutlinedTextField(
-                        value = viewModel.searchQuery.value,
+                        value = searchQuery,
                         onValueChange = { viewModel.setSearchQuery(it) },
                         placeholder = { Text("搜索文件或文件夹...") },
                         leadingIcon = {
@@ -92,7 +118,7 @@ fun FileManagerScreen(navController: NavController, onBack: () -> Unit = {},goSe
                             )
                         },
                         trailingIcon = {
-                            if (viewModel.searchQuery.value.isNotEmpty()) {
+                            if (searchQuery.isNotEmpty()) {
                                 IconButton(onClick = { viewModel.setSearchQuery("") }) {
                                     Icon(
                                         imageVector = Icons.Default.Clear,
@@ -124,9 +150,10 @@ fun FileManagerScreen(navController: NavController, onBack: () -> Unit = {},goSe
             Column(modifier = Modifier.fillMaxSize()) {
 
                 val sortBy = viewModel.sortBy.collectAsState()
+                val filterMode = viewModel.filterMode.collectAsState()
                 val sortDirection = viewModel.sortDirection.collectAsState()
                 Toolbar(
-                    filterMode = viewModel.filterMode.value,
+                    filterMode = filterMode.value,
                     onFilterModeChanged = { viewModel.setFilterMode(it) },
                     sortBy = sortBy.value,
                     sortDirection = sortDirection.value,
@@ -141,7 +168,7 @@ fun FileManagerScreen(navController: NavController, onBack: () -> Unit = {},goSe
                     onUploadClick = {
                         val intent = Intent(context, UploadActivity::class.java)
                         intent.putExtra("path", currentPath)
-                        context.startActivity(intent)
+                        uploadLauncher.launch(intent)
                     },
                     onCreateFolderClick = { viewModel.showMkdirDialog() },
                     onGoUpClick = { viewModel.goUp() },
@@ -157,55 +184,112 @@ fun FileManagerScreen(navController: NavController, onBack: () -> Unit = {},goSe
 
                 Divider()
 
-                Box(modifier = Modifier.weight(1f)) {
-                    if (isLoading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.align(Alignment.Center)
-                        )
-                    } else if (errorMessage != null) {
+                Box(modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()) {
+
+                    var lazyGridState by remember {
+                        mutableStateOf(LazyGridState())
+                    }
+
+                    FileList(
+                        files = files,
+                        selectedFile = selectedFile,
+                        gridColumns = gridColumns,
+                        isRefreshing = isRefreshing,
+                        lazyGridState = lazyGridState,
+                        onRefresh = {
+                            isRefreshing = true
+                            viewModel.loadFiles(currentPath)
+                        },
+                        onFileClick = { file ->
+                            if (file.isFolder) {
+                                viewModel.navigateToFolder(file)
+                                viewModel.setSelectedFile(null)
+                            } else {
+                                viewModel.setSelectedFile(file)
+                                // 根据文件类型决定操作
+                                val canPreview = FileType.isPreViewType(file.name)
+                                val canEdit = FileType.isEditStringType(file.name)
+
+                                if (canPreview) {
+                                    // 可预览 -> 打开 WebView
+                                    val url = getFileUrl(viewModel, file)
+                                    com.ohuang.filemanager.WebActivity.start(context, url)
+                                } else if (canEdit&&!file.isWithinTextEditorLimit()) {
+                                    // 可编辑文本 -> 打开编辑弹窗
+                                    viewModel.readFileContent(file)
+                                } else {
+                                    // 其他 -> 显示下载确认弹窗
+                                    viewModel.showDownloadDialog(file)
+                                }
+                            }
+                        },
+                        onPreview = { file ->
+                            // 打开 WebView Activity 预览
+                            val url = getFileUrl(viewModel, file)
+                            com.ohuang.filemanager.WebActivity.start(context, url)
+                        },
+                        onEditString = { file ->
+                            // 打开文本编辑弹窗
+                            viewModel.readFileContent(file)
+                        },
+                        onDownload = { file ->
+                            viewModel.showDownloadDialog(file)
+                        },
+                        onRename = { file ->
+                            viewModel.showRenameDialog(file)
+                        },
+                        onDelete = { file ->
+                            viewModel.showDeleteDialog(file)
+                        },
+                        onMove = { file ->
+                            viewModel.showMoveDialog(file)
+                        },
+                        onCopyLink = { file ->
+                            copyFileLinkToClipboard(context, viewModel, file)
+                        },
+                        onOpenInNew = { file ->
+                            openFileInNewTab(context, viewModel, file)
+                        }
+                    )
+
+                    var isShowLoading by remember {
+                        mutableStateOf(false)
+                    }
+                    LaunchedEffect(isLoading) {
+                        if (isLoading){
+                            lazyGridState= LazyGridState(firstVisibleItemIndex = lazyGridState.firstVisibleItemIndex, firstVisibleItemScrollOffset = lazyGridState.firstVisibleItemScrollOffset)
+                            delay(100)
+                            isShowLoading=isLoading
+                        }else{
+                            lazyGridState=viewModel.getLazyGridState()
+                            isShowLoading=isLoading
+                        }
+                    }
+
+                    if (isShowLoading) {
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(MaterialTheme.colorScheme.background)
+                        ) {
+
+                            CircularProgressIndicator(
+                                modifier = Modifier.align(Alignment.Center)
+                            )
+
+                        }
+
+                    }
+
+                    if (!isLoading&&errorMessage != null) {
                         ErrorState(errorMessage = errorMessage!!) {
                             viewModel.loadFiles(currentPath)
                         }
-                    } else {
-                        FileList(
-                            files = files,
-                            selectedFile = selectedFile,
-                            gridColumns = gridColumns,
-                            isRefreshing = isRefreshing,
-                            onRefresh = {
-                                isRefreshing = true
-                                viewModel.loadFiles(currentPath)
-                            },
-                            onFileClick = { file ->
-                                if (file.isFolder) {
-                                    viewModel.navigateToFolder(file)
-                                } else {
-                                    viewModel.readFileContent(file)
-                                }
-                            },
-                            onPreview = { file ->
-                                viewModel.readFileContent(file)
-                            },
-                            onDownload = { file ->
-                                downloadFile(context, viewModel, file)
-                            },
-                            onRename = { file ->
-                                viewModel.showRenameDialog(file)
-                            },
-                            onDelete = { file ->
-                                viewModel.showDeleteDialog(file)
-                            },
-                            onMove = { file ->
-                                viewModel.showMoveDialog(file)
-                            },
-                            onCopyLink = { file ->
-                                copyFileLinkToClipboard(context, viewModel, file)
-                            },
-                            onOpenInNew = { file ->
-                                openFileInNewTab(context, viewModel, file)
-                            }
-                        )
                     }
+
                 }
             }
 
@@ -253,9 +337,39 @@ fun FileManagerScreen(navController: NavController, onBack: () -> Unit = {},goSe
     MoveDialog(
         show = showMoveDialog,
         file = moveFile,
+        folderTree = folderTree,
+        selectedPath = moveTargetPath,
         onDismiss = { viewModel.hideMoveDialog() },
         onMove = { targetPath ->
             moveFile?.let { viewModel.moveFile(it, targetPath) }
+        },
+        onToggleFolder = { node ->
+            viewModel.toggleFolder(node)
+        },
+        onSelectPath = { path ->
+            viewModel.setMoveTargetPath(path)
+        }
+    )
+
+    DownloadDialog(
+        show = showDownloadDialog,
+        file = downloadFile,
+        onDismiss = { viewModel.hideDownloadDialog() },
+        onDownload = {
+            downloadFile?.let {
+                startSystemDownload(context, it, viewModel)
+                viewModel.hideDownloadDialog()
+            }
+        }
+    )
+
+    EditDialog(
+        show = showEditDialog,
+        file = previewFile,
+        content = editFileContent,
+        onDismiss = { viewModel.hideEditDialog() },
+        onSave = { content ->
+            previewFile?.let { file -> viewModel.saveFileContent(file, content) }
         }
     )
 }
@@ -271,7 +385,34 @@ private fun getFileUrl(viewModel: FileViewModel, file: FileItem): String {
 }
 
 /**
- * 下载文件：构建下载 URL 并通过浏览器打开
+ * 使用系统下载器下载文件
+ */
+private fun startSystemDownload(context: Context, file: FileItem, viewModel: FileViewModel) {
+    try {
+        val url = getFileUrl(viewModel, file)
+        val fileName = file.getFileName()
+
+        val request = android.app.DownloadManager.Request(Uri.parse(url)).apply {
+            setTitle("下载 $fileName")
+            setDescription("正在下载 $fileName")
+            setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, fileName)
+            setAllowedOverMetered(true)
+            setAllowedOverRoaming(true)
+        }
+
+        val downloadManager =
+            context.getSystemService(Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
+        downloadManager.enqueue(request)
+
+        Toast.makeText(context, "已开始下载: $fileName", Toast.LENGTH_SHORT).show()
+    } catch (e: Exception) {
+        Toast.makeText(context, "下载失败: ${e.message}", Toast.LENGTH_SHORT).show()
+    }
+}
+
+/**
+ * 下载文件：构建下载 URL 并通过浏览器打开（保留作为后备方案）
  */
 private fun downloadFile(context: Context, viewModel: FileViewModel, file: FileItem) {
     try {
@@ -314,6 +455,7 @@ fun ErrorState(errorMessage: String, onRetry: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.background)
             .padding(64.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center

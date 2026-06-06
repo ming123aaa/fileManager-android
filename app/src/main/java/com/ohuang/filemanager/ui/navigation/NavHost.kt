@@ -30,14 +30,14 @@ import com.ohuang.filemanager.ui.utils.rememberSettingScreenWidth
 fun AppNavHost(onBack: () -> Unit = {}) {
     val navController = rememberNavController()
     val deviceType = rememberDeviceType()
-    val settingWidth= rememberSettingScreenWidth()
+    val settingWidth = rememberSettingScreenWidth()
     var showSetting by remember { mutableStateOf(false) }
     val state = remember { MutableTransitionState(false) }
     LaunchedEffect(showSetting) {
-        if (showSetting){
-            state.targetState=true
-        }else{
-            state.targetState=false
+        if (showSetting) {
+            state.targetState = true
+        } else {
+            state.targetState = false
         }
     }
 
@@ -48,25 +48,37 @@ fun AppNavHost(onBack: () -> Unit = {}) {
         composable("filemanager") {
             Row() {
 
-                FragmentBox (modifier = Modifier.weight(1f),
-                    isChange = if (deviceType==DeviceType.TABLET){ state.isIdle }else{true}
+                FragmentBox(
+                    modifier = Modifier.weight(1f),
+                    isChange = if (deviceType == DeviceType.TABLET) {
+                        state.isIdle
+                    } else {
+                        true
+                    }
                 ) {
-                    FileManagerScreen(navController, onBack = onBack, goSetting = {
-                        if (deviceType==DeviceType.TABLET){
-                            showSetting=true
-                        }else {
+                    FileManagerScreen(navController, onBack = {
+                        if (deviceType == DeviceType.TABLET && showSetting) {
+                            showSetting = false
+                            return@FileManagerScreen
+                        }
+
+                        onBack()
+                    }, goSetting = {
+                        if (deviceType == DeviceType.TABLET) {
+                            showSetting = true
+                        } else {
                             navController.navigate("settings")
                         }
                     })
                 }
 
-                if (deviceType==DeviceType.TABLET){
-                   AnimatedVisibility(state) {
-                       Box(modifier = Modifier.width(settingWidth)) {
-                           SettingsScreen(navController, onBack = { showSetting = false })
-                       }
-                   }
-}
+                if (deviceType == DeviceType.TABLET) {
+                    AnimatedVisibility(state) {
+                        Box(modifier = Modifier.width(settingWidth)) {
+                            SettingsScreen(navController, onBack = { showSetting = false })
+                        }
+                    }
+                }
             }
 
         }

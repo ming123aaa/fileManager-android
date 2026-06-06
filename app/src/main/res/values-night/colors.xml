@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 主题色 - 浅蓝 -->
+    <color name="primary">#FF93C5FD</color>
+    <color name="primary_dark">#FF60A5FA</color>
+    <color name="primary_light">#FFC7DFFF</color>
+    <color name="on_primary">#FF000000</color>
+
+    <!-- 强调色 - 暖橙 -->
+    <color name="accent">#FFFBBF24</color>
+    <color name="accent_dark">#FFF59E0B</color>
+    <color name="on_accent">#FF000000</color>
+
+    <!-- 背景色 -->
+    <color name="background">#FF0F172A</color>
+    <color name="surface">#FF1E293B</color>
+    <color name="surface_variant">#FF334155</color>
+
+    <!-- 文字色 -->
+    <color name="text_primary">#FFF1F5F9</color>
+    <color name="text_secondary">#FF94A3B8</color>
+    <color name="text_hint">#FF64748B</color>
+
+    <!-- 状态色 -->
+    <color name="success">#FF4ADE80</color>
+    <color name="warning">#FFFBBF24</color>
+    <color name="error">#FFF87171</color>
+    <color name="info">#FF60A5FA</color>
+
+    <!-- 分割线 -->
+    <color name="divider">#FF334155</color>
+
+    <!-- 旧颜色兼容 -->
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>

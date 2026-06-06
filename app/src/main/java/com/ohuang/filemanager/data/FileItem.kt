@@ -13,6 +13,13 @@ data class FileItem(
         return parts.last()
     }
 
+    /**
+     * 是否超出文本编辑的大小
+     */
+    fun isWithinTextEditorLimit(): Boolean{
+        return length>=1024*1024
+    }
+
     fun formatSize(): String {
         if (length == 0L) return if (isFolder) "—" else "0 B"
         val units = listOf("B", "KB", "MB", "GB", "TB")

@@ -1,6 +1,14 @@
 package com.ohuang.filemanager.ui.components
 
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -8,11 +16,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.ohuang.filemanager.data.FileItem
+import com.ohuang.filemanager.ui.viewmodel.FolderTreeNode
 
 @Composable
 fun CreateFolderDialog(
@@ -248,12 +260,14 @@ fun DeleteDialog(
 fun MoveDialog(
     show: Boolean,
     file: FileItem?,
+    folderTree: List<FolderTreeNode>,
+    selectedPath: String,
     onDismiss: () -> Unit,
-    onMove: (targetPath: String) -> Unit
+    onMove: (targetPath: String) -> Unit,
+    onToggleFolder: (FolderTreeNode) -> Unit,
+    onSelectPath: (String) -> Unit
 ) {
     if (!show || file == null) return
-
-    var targetPath by remember { mutableStateOf("") }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -291,16 +305,41 @@ fun MoveDialog(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-                OutlinedTextField(
-                    value = targetPath,
-                    onValueChange = { targetPath = it },
-                    label = { Text("目标路径") },
-                    placeholder = { Text("请输入目标路径，留空表示根目录") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                Text(
+                    text = "选择目标位置:",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // 文件夹树
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 300.dp)
+                        .verticalScroll(rememberScrollState())
+                        .border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.outline,
+                            shape = MaterialTheme.shapes.small
+                        )
+                        .padding(8.dp)
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        folderTree.forEach { node ->
+                            FolderTreeItem(
+                                node = node,
+                                depth = 0,
+                                selectedPath = selectedPath,
+                                onToggleFolder = onToggleFolder,
+                                onSelectPath = onSelectPath
+                            )
+                        }
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(24.dp))
 
@@ -314,7 +353,7 @@ fun MoveDialog(
                     Spacer(modifier = Modifier.width(12.dp))
                     Button(
                         onClick = {
-                            onMove(targetPath.trim())
+                            onMove(selectedPath)
                         }
                     ) {
                         Text("移动")
@@ -322,6 +361,336 @@ fun MoveDialog(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun FolderTreeItem(
+    node: FolderTreeNode,
+    depth: Int,
+    selectedPath: String,
+    onToggleFolder: (FolderTreeNode) -> Unit,
+    onSelectPath: (String) -> Unit
+) {
+    val isSelected = node.path == selectedPath
+    // hasSubfolders 为 null 表示未知，需要显示展开按钮让用户点击加载
+    val mayHaveSubfolders = node.hasSubfolders ?: true
+
+    Column {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(
+                    if (isSelected) {
+                        Modifier.border(
+                            width = 2.dp,
+                            color = MaterialTheme.colorScheme.primary,
+                            shape = MaterialTheme.shapes.small
+                        )
+                    } else Modifier
+                ),
+            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f) else Color.Transparent,
+            shape = MaterialTheme.shapes.small,
+            onClick = {
+                onSelectPath(node.path)
+                // 选中时自动展开
+                if (!node.isExpanded && mayHaveSubfolders) {
+                    onToggleFolder(node)
+                }else if (mayHaveSubfolders) {
+                    onToggleFolder(node)
+                }
+            }
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = (depth * 16).dp, top = 8.dp, bottom = 8.dp, end = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 展开/折叠图标 - 增大点击范围
+                if (mayHaveSubfolders) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clickable { onToggleFolder(node) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (node.isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                imageVector = if (node.isExpanded) Icons.Default.ExpandMore else Icons.Default.ChevronRight,
+                                contentDescription = if (node.isExpanded) "折叠" else "展开",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                } else {
+                    Spacer(modifier = Modifier.width(32.dp))
+                }
+
+                // 文件夹图标
+                Icon(
+                    imageVector = if (node.path.isEmpty()) Icons.Default.Home else Icons.Default.Folder,
+                    contentDescription = "Folder",
+                    tint = if (node.path.isEmpty()) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(22.dp)
+                )
+
+                Spacer(modifier = Modifier.width(10.dp))
+
+                // 文件夹名称
+                Text(
+                    text = node.name,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                    ),
+                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
+
+        // 子节点
+        if (node.isExpanded && node.children.isNotEmpty()) {
+            node.children.forEach { childNode ->
+                FolderTreeItem(
+                    node = childNode,
+                    depth = depth + 1,
+                    selectedPath = selectedPath,
+                    onToggleFolder = onToggleFolder,
+                    onSelectPath = onSelectPath
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun EditDialog(
+    show: Boolean,
+    file: FileItem?,
+    content: String,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit
+) {
+    if (!show || file == null) return
+
+    var editContent by remember { mutableStateOf(content) }
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
+
+    Dialog(
+        onDismissRequest = {
+            keyboardController?.hide()
+            focusManager.clearFocus()
+            onDismiss()
+        },
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true,
+            decorFitsSystemWindows = false // 允许 Dialog 处理系统窗口 insets
+        )
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.9f)
+                .padding(horizontal = 16.dp)
+                .imePadding() // 添加输入法高度的内边距
+                .systemBarsPadding(), // 添加系统栏的内边距
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                // 标题栏
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.EditNote,
+                            contentDescription = "Edit",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = file.getFileName(),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    IconButton(onClick = {
+                        keyboardController?.hide()
+                        focusManager.clearFocus()
+                        onDismiss()
+                    }) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close"
+                        )
+                    }
+                }
+
+                // 文本编辑器
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp)
+                        .border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.outline,
+                            shape = MaterialTheme.shapes.small
+                        )
+                        .padding(8.dp)
+                ) {
+                    androidx.compose.foundation.text.BasicTextField(
+                        value = editContent,
+                        onValueChange = { editContent = it },
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState()),
+                        textStyle = MaterialTheme.typography.bodyMedium,
+                        keyboardOptions = KeyboardOptions(
+                            imeAction = ImeAction.Done
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onDone = {
+                                keyboardController?.hide()
+                                focusManager.clearFocus()
+                            }
+                        ),
+                        decorationBox = { innerTextField ->
+                            if (editContent.isEmpty()) {
+                                Text(
+                                    text = "输入文件内容...",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            innerTextField()
+                        }
+                    )
+                }
+
+                // 底部按钮
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = {
+                        keyboardController?.hide()
+                        focusManager.clearFocus()
+                        onDismiss()
+                    }) {
+                        Text("取消")
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Button(
+                        onClick = {
+                            keyboardController?.hide()
+                            focusManager.clearFocus()
+                            onSave(editContent)
+                        }
+                    ) {
+                        Text("保存")
+                    }
+                }
+            }
+        }
+    }
+}
+@Composable
+fun DownloadDialog(
+    show: Boolean,
+    file: FileItem?,
+    onDismiss: () -> Unit,
+    onDownload: () -> Unit
+) {
+    if (!show || file == null) return
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Download,
+                        contentDescription = "Download",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "下载文件",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = "确定要下载文件 \"${file.getFileName()}\" 吗？",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                if (!file.isFolder) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "文件大小: ${formatFileSize(file.length)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("取消")
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Button(onClick = onDownload) {
+                        Text("下载")
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun formatFileSize(size: Long): String {
+    return when {
+        size < 1024 -> "$size B"
+        size < 1024 * 1024 -> "${size / 1024} KB"
+        size < 1024 * 1024 * 1024 -> "${size / (1024 * 1024)} MB"
+        else -> "${size / (1024 * 1024 * 1024)} GB"
     }
 }
 
