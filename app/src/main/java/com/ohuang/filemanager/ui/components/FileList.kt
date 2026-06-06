@@ -1,50 +1,141 @@
 package com.ohuang.filemanager.ui.components
 
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.ExperimentalMaterialApi
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
+import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material3.Icon
 import com.ohuang.filemanager.data.FileItem
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
 @Composable
 fun FileList(
     files: List<FileItem>,
     selectedFile: FileItem?,
     onFileClick: (FileItem) -> Unit,
     gridColumns: Int = 2,
+    isRefreshing: Boolean = false,
+    onRefresh: () -> Unit = {},
     onPreview: (FileItem) -> Unit = {},
     onDownload: (FileItem) -> Unit = {},
     onRename: (FileItem) -> Unit = {},
-    onDelete: (FileItem) -> Unit = {}
+    onDelete: (FileItem) -> Unit = {},
+    onMove: (FileItem) -> Unit = {},
+    onCopyLink: (FileItem) -> Unit = {},
+    onOpenInNew: (FileItem) -> Unit = {}
 ) {
-    if (files.isEmpty()) {
-        EmptyState()
-        return
-    }
 
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(gridColumns),
-        modifier = Modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(4.dp)
+    // 当前正在显示上下文菜单的文件（仅一个），确保同一时间只有一个菜单打开
+    var contextMenuFile by remember { mutableStateOf<FileItem?>(null) }
+
+
+
+    PullRefresh(
+        isRefreshing=isRefreshing,
+        onRefresh=onRefresh,
+        modifier = Modifier
+            .fillMaxSize()
+
     ) {
-        items(files) { file ->
-            FileCard(
-                file = file,
-                onClick = { onFileClick(file) },
-                isSelected = selectedFile?.name == file.name
-            )
+
+
+        if (files.isEmpty()) {
+            EmptyState()
+           return@PullRefresh
         }
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(gridColumns),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(4.dp)
+        ) {
+            items(files) { file ->
+                FileCard(
+                    file = file,
+                    onClick = { onFileClick(file) },
+                    onLongClick = {
+                        contextMenuFile = file
+                    },
+                    isSelected = selectedFile?.name == file.name,
+                    // 仅当前卡片显示上下文菜单
+                    showContextMenu = contextMenuFile == file,
+                    onContextMenuDismiss = {
+                        contextMenuFile = null
+                    },
+                    onOpen = { f ->
+                        contextMenuFile = null
+                        if (f.isFolder) onFileClick(f) else onPreview(f)
+                    },
+                    onPreview = { f ->
+                        contextMenuFile = null
+                        onPreview(f)
+                    },
+                    onDownload = { f ->
+                        contextMenuFile = null
+                        onDownload(f)
+                    },
+                    onRename = { f ->
+                        contextMenuFile = null
+                        onRename(f)
+                    },
+                    onMove = { f ->
+                        contextMenuFile = null
+                        onMove(f)
+                    },
+                    onDelete = { f ->
+                        contextMenuFile = null
+                        onDelete(f)
+                    },
+                    onCopyLink = { f ->
+                        contextMenuFile = null
+                        onCopyLink(f)
+                    },
+                    onOpenInNew = { f ->
+                        contextMenuFile = null
+                        onOpenInNew(f)
+                    }
+                )
+            }
+
+        }
+
+
+    }
+}
+
+@OptIn(ExperimentalMaterialApi::class)
+@Composable
+fun PullRefresh(
+    isRefreshing: Boolean = false,
+    onRefresh: () -> Unit = {}, modifier: Modifier = Modifier,
+    content: @Composable BoxScope.() -> Unit
+) {
+
+    // 下拉刷新：PullToRefreshContainer 内部处理松手检测，自动 startRefresh()
+    val pullRefreshState = rememberPullRefreshState(isRefreshing, onRefresh = onRefresh)
+
+    Box(modifier = modifier.pullRefresh(pullRefreshState)) {
+        this.content()
+        PullRefreshIndicator(
+            refreshing = isRefreshing,
+            state = pullRefreshState, modifier = Modifier.align( Alignment.TopCenter)
+
+        )
     }
 }
 
@@ -52,8 +143,8 @@ fun FileList(
 fun EmptyState() {
     Column(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(64.dp),
+            .fillMaxSize()
+            .padding(64.dp).verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {

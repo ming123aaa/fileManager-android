@@ -1,11 +1,12 @@
 package com.ohuang.filemanager.ui.components
 
-import androidx.compose.foundation.clickable
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -13,20 +14,44 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.ohuang.filemanager.data.FileItem
 
+/**
+ * 文件/文件夹卡片组件，内置长按上下文菜单。
+ * 将 DropdownMenu 放在 Card 的 Box 内部以确保菜单锚定到正确的卡片位置。
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FileCard(
     file: FileItem,
     onClick: () -> Unit,
-    isSelected: Boolean = false
+    onLongClick: () -> Unit = {},
+    isSelected: Boolean = false,
+    // 上下文菜单相关
+    showContextMenu: Boolean = false,
+    onContextMenuDismiss: () -> Unit = {},
+    onOpen: (FileItem) -> Unit = {},
+    onPreview: (FileItem) -> Unit = {},
+    onDownload: (FileItem) -> Unit = {},
+    onRename: (FileItem) -> Unit = {},
+    onMove: (FileItem) -> Unit = {},
+    onDelete: (FileItem) -> Unit = {},
+    onCopyLink: (FileItem) -> Unit = {},
+    onOpenInNew: (FileItem) -> Unit = {}
 ) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(4.dp),
+    Box {
+        Card(
+            modifier = Modifier
+                .animateContentSize()
+                .fillMaxWidth()
+
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = onLongClick
+                )
+                .padding(4.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer 
@@ -72,6 +97,97 @@ fun FileCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
+            )
+        }
+    }
+
+        // 上下文菜单 —— 放在 Box 内以锚定到当前卡片位置
+        DropdownMenu(
+            expanded = showContextMenu,
+            onDismissRequest = onContextMenuDismiss,
+            offset = DpOffset(8.dp, 0.dp)
+        ) {
+            if (file.isFolder) {
+                DropdownMenuItem(
+                    text = { Text("打开") },
+                    onClick = { onOpen(file) },
+                    leadingIcon = {
+                        Icon(Icons.Default.FolderOpen, contentDescription = null,
+                            tint = Color(0xFFF59E0B))
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("复制链接") },
+                    onClick = { onCopyLink(file) },
+                    leadingIcon = {
+                        Icon(Icons.Default.Link, contentDescription = null)
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("在新标签页打开") },
+                    onClick = { onOpenInNew(file) },
+                    leadingIcon = {
+                        Icon(Icons.Default.OpenInNew, contentDescription = null)
+                    }
+                )
+            } else {
+                DropdownMenuItem(
+                    text = { Text("预览") },
+                    onClick = { onPreview(file) },
+                    leadingIcon = {
+                        Icon(Icons.Default.Visibility, contentDescription = null)
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("下载") },
+                    onClick = { onDownload(file) },
+                    leadingIcon = {
+                        Icon(Icons.Default.Download, contentDescription = null)
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("复制下载链接") },
+                    onClick = { onCopyLink(file) },
+                    leadingIcon = {
+                        Icon(Icons.Default.Link, contentDescription = null)
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("在新标签页打开") },
+                    onClick = { onOpenInNew(file) },
+                    leadingIcon = {
+                        Icon(Icons.Default.OpenInNew, contentDescription = null)
+                    }
+                )
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+            DropdownMenuItem(
+                text = { Text("重命名") },
+                onClick = { onRename(file) },
+                leadingIcon = {
+                    Icon(Icons.Default.Edit, contentDescription = null)
+                }
+            )
+
+            DropdownMenuItem(
+                text = { Text("移动") },
+                onClick = { onMove(file) },
+                leadingIcon = {
+                    Icon(Icons.Default.DriveFileMove, contentDescription = null)
+                }
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+            DropdownMenuItem(
+                text = { Text("删除") },
+                onClick = { onDelete(file) },
+                leadingIcon = {
+                    Icon(Icons.Default.Delete, contentDescription = null,
+                        tint = Color.Red)
+                }
             )
         }
     }

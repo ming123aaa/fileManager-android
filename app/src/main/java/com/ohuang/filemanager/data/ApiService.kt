@@ -93,9 +93,19 @@ object ApiService {
         }
     }
 
-    fun testConnect(): HttpCall<String> {
+    fun getDownloadPath(fullPath: String,isFolder: Boolean=false): String{
+        val baseUrl =HttpConfig.getBaseUrl()
+        val encodedPath = java.net.URLEncoder.encode(fullPath, "UTF-8").replace("%2F", "/")
+        return if (isFolder) {
+            "${baseUrl}/main/file.html?path=${java.net.URLEncoder.encode(fullPath, "UTF-8")}"
+        } else {
+            "${baseUrl}/main/files/$encodedPath"
+        }
+    }
+
+    fun testConnect(baseUrl: String=HttpConfig.getBaseUrl()): HttpCall<String> {
         return client.stringCall {
-            url(HttpConfig.getBaseUrl() + "/test/connect")
+            url("$baseUrl/test/connect")
         }
     }
 

@@ -1,9 +1,11 @@
 package com.ohuang.filemanager.ui.viewmodel
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ohuang.filemanager.data.ApiService
 import com.ohuang.filemanager.data.FileItem
+import com.ohuang.filemanager.util.SPUtil
 import com.ohuang.kthttp.call.awaitOrNull
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -75,6 +77,10 @@ class FileViewModel : ViewModel() {
 
     private var allFiles: List<FileItem> = emptyList()
 
+    init {
+        loadFiles()
+    }
+
     fun loadFiles(path: String = "") {
         _isLoading.value = true
         _errorMessage.value = null
@@ -107,15 +113,19 @@ class FileViewModel : ViewModel() {
             filtered = filtered.filter { it.name.lowercase().contains(query) }
         }
 
-        filtered = when (_sortBy.value) {
-            SortBy.NAME -> filtered.sortedBy { it.name.lowercase() }
-            SortBy.SIZE -> filtered.sortedBy { it.length }
-            SortBy.DATE -> filtered.sortedBy { it.lastModified }
+        // 排序：文件夹始终优先，再按所选字段排序（与 Web 端一致）
+        val comparator: Comparator<FileItem> = when (_sortBy.value) {
+            SortBy.NAME -> compareBy { it.name.lowercase() }
+            SortBy.SIZE -> compareBy { it.length }
+            SortBy.DATE -> compareBy { it.lastModified }
         }
-
-        if (_sortDirection.value == SortDirection.DESC) {
-            filtered = filtered.reversed()
+        val directionComparator = if (_sortDirection.value == SortDirection.DESC) {
+            comparator.reversed()
+        } else {
+            comparator
         }
+        // 文件夹最先，文件在后
+        filtered = filtered.sortedWith(compareByDescending<FileItem> { it.isFolder }.then(directionComparator))
 
         _files.value = filtered
     }
@@ -150,6 +160,17 @@ class FileViewModel : ViewModel() {
         } else {
             SortDirection.ASC
         }
+        applyFilters()
+    }
+
+    /**
+     * 从 SharedPreferences 加载排序偏好（与 Web 端 localStorage key 对齐）
+     */
+    fun loadSortState(context: Context) {
+        val savedSortBy = SPUtil.get(context, "fm_sortBy", "NAME") as String
+        val savedSortDir = SPUtil.get(context, "fm_sortDir", "ASC") as String
+        try { _sortBy.value = SortBy.valueOf(savedSortBy) } catch (_: Exception) {}
+        try { _sortDirection.value = SortDirection.valueOf(savedSortDir) } catch (_: Exception) {}
         applyFilters()
     }
 

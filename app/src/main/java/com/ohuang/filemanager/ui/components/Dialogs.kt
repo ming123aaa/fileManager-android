@@ -245,6 +245,87 @@ fun DeleteDialog(
 }
 
 @Composable
+fun MoveDialog(
+    show: Boolean,
+    file: FileItem?,
+    onDismiss: () -> Unit,
+    onMove: (targetPath: String) -> Unit
+) {
+    if (!show || file == null) return
+
+    var targetPath by remember { mutableStateOf("") }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DriveFileMove,
+                        contentDescription = "Move",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "移动文件",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = "源文件: \"${file.getFileName()}\"",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = targetPath,
+                    onValueChange = { targetPath = it },
+                    label = { Text("目标路径") },
+                    placeholder = { Text("请输入目标路径，留空表示根目录") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("取消")
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Button(
+                        onClick = {
+                            onMove(targetPath.trim())
+                        }
+                    ) {
+                        Text("移动")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun ToastMessage(message: String?) {
     if (message == null) return
     

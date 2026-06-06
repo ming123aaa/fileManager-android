@@ -1,5 +1,6 @@
 package com.ohuang.filemanager.ui.components
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -64,7 +65,10 @@ fun Breadcrumb(
             parts.forEachIndexed { index, part ->
                 accPath += (if (accPath.isEmpty()) "" else "/") + part
                 val isLast = index == parts.size - 1
+
                 val navPath = accPath
+
+
 
                 Icon(
                     imageVector = Icons.Default.ChevronRight,

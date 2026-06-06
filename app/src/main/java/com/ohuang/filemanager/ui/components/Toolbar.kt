@@ -156,29 +156,90 @@ fun SortSelector(
     onSortChanged: (SortBy) -> Unit,
     onSortDirectionChanged: () -> Unit
 ) {
-    Row(
-        modifier = Modifier.clickable { onSortDirectionChanged() },
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        val sortText = when (sortBy) {
-            SortBy.NAME -> "名称"
-            SortBy.SIZE -> "大小"
-            SortBy.DATE -> "时间"
+    var expanded by remember { mutableStateOf(false) }
+
+    Box {
+        Row(
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 点击文字区域展开排序字段选择
+            TextButton(
+                onClick = { expanded = true },
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                val sortText = when (sortBy) {
+                    SortBy.NAME -> "名称"
+                    SortBy.SIZE -> "大小"
+                    SortBy.DATE -> "时间"
+                }
+                Text(
+                    text = sortText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Icon(
+                    imageVector = Icons.Default.ArrowDropDown,
+                    contentDescription = "Sort field",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+
+            // 点击箭头切换排序方向
+            IconButton(
+                onClick = onSortDirectionChanged,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = if (sortDirection == SortDirection.ASC) Icons.Default.ArrowUpward
+                                 else Icons.Default.ArrowDownward,
+                    contentDescription = "Sort direction",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
         }
 
-        Text(
-            text = sortText,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 4.dp)
-        )
-
-        Icon(
-            imageVector = if (sortDirection == SortDirection.ASC) Icons.Default.ArrowUpward
-                         else Icons.Default.ArrowDownward,
-            contentDescription = "Sort direction",
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(16.dp)
-        )
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            DropdownMenuItem(
+                text = { Text("名称") },
+                onClick = {
+                    onSortChanged(SortBy.NAME)
+                    expanded = false
+                },
+                leadingIcon = {
+                    if (sortBy == SortBy.NAME) {
+                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                    }
+                }
+            )
+            DropdownMenuItem(
+                text = { Text("大小") },
+                onClick = {
+                    onSortChanged(SortBy.SIZE)
+                    expanded = false
+                },
+                leadingIcon = {
+                    if (sortBy == SortBy.SIZE) {
+                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                    }
+                }
+            )
+            DropdownMenuItem(
+                text = { Text("时间") },
+                onClick = {
+                    onSortChanged(SortBy.DATE)
+                    expanded = false
+                },
+                leadingIcon = {
+                    if (sortBy == SortBy.DATE) {
+                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                    }
+                }
+            )
+        }
     }
 }

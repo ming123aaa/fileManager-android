@@ -1,13 +1,23 @@
 package com.ohuang.filemanager.ui.utils
 
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.BoxWithConstraintsScope
 import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
-import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.UiComposable
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.unit.DpSize
+
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import kotlin.math.ceil
+import kotlin.math.max
+import kotlin.math.min
 
 enum class DeviceType {
     PHONE, TABLET
@@ -25,9 +35,110 @@ fun rememberDeviceType(): DeviceType {
 }
 
 @Composable
-fun rememberGridColumns(deviceType: DeviceType): Int {
+fun rememberSettingScreenInRight(): Boolean {
     val configuration = LocalConfiguration.current
     val widthDp = configuration.screenWidthDp
+    return remember(widthDp) { widthDp > 600 }
+}
+
+@Composable
+fun rememberSettingScreenWidth(): Dp {
+    val configuration = LocalConfiguration.current
+    val widthDp = configuration.screenWidthDp
+    return remember(widthDp) {
+        var value = max(300, (widthDp * 0.3).toInt())
+        value = min(400, value)
+        value.dp
+    }
+
+}
+
+data class FragmentBoxSize(
+    val minWidth: Float,
+
+    val maxWidth: Float,
+
+    val minHeight: Float,
+
+    val maxHeight: Float
+)
+
+val LocalFragmentBoxSize = compositionLocalOf<FragmentBoxSize> {
+    FragmentBoxSize(0f, 0f, 0f, 0f)
+}
+
+
+@Composable
+fun FragmentBox(
+    modifier: Modifier = Modifier,
+    contentAlignment: Alignment = Alignment.TopStart,
+    propagateMinConstraints: Boolean = false,
+    isChange: Boolean = true,
+    content: @Composable @UiComposable BoxWithConstraintsScope.() -> Unit
+) {
+
+
+    BoxWithConstraints(
+        modifier = modifier,
+        contentAlignment = contentAlignment,
+        propagateMinConstraints = propagateMinConstraints
+    ) {
+        val fragmentBoxSize = remember {
+            mutableStateOf(
+                FragmentBoxSize(
+                    minWidth.value, maxWidth.value,
+                    minHeight.value, maxHeight.value
+                )
+            )
+        }
+        val lastBoxSize = remember {
+            mutableStateOf(
+                FragmentBoxSize(
+                    minWidth.value, maxWidth.value,
+                    minHeight.value, maxHeight.value
+                )
+            )
+        }
+
+
+        LaunchedEffect(
+            minWidth.value, maxWidth.value,
+            minHeight.value, maxHeight.value
+        ) {
+            val data = FragmentBoxSize(
+                minWidth.value, maxWidth.value,
+                minHeight.value, maxHeight.value
+            )
+            fragmentBoxSize.value = data
+            if (isChange) {
+                lastBoxSize.value = data
+            }
+
+        }
+
+        CompositionLocalProvider(
+            LocalFragmentBoxSize.provides(
+                if (isChange) {
+                    fragmentBoxSize.value
+                } else {
+                    lastBoxSize.value
+                }
+            )
+        ) {
+            this@BoxWithConstraints.content()
+        }
+    }
+}
+
+@Composable
+fun rememberGridColumns(deviceType: DeviceType): Int {
+    val configuration = LocalConfiguration.current
+    val fragmentSize = LocalFragmentBoxSize.current
+    val widthDp = if (fragmentSize.maxWidth >= 100 && fragmentSize.maxWidth <= 5000) {
+        fragmentSize.maxWidth.toInt()
+    } else {
+        configuration.screenWidthDp
+    }
     return remember(widthDp, deviceType) {
         when {
             widthDp >= 1200 -> 6
