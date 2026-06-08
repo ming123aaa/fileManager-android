@@ -156,7 +156,7 @@ private fun UploadScreen(
             Manifest.permission.POST_NOTIFICATIONS
         )
     } else {
-        arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+        arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE)
     }
 
     val filePickerLauncher = rememberLauncherForActivityResult(

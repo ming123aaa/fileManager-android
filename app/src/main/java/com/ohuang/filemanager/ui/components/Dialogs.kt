@@ -499,7 +499,7 @@ fun EditDialog(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.9f)
+                .fillMaxHeight(0.8f)
                 .padding(horizontal = 16.dp)
                 .imePadding() // 添加输入法高度的内边距
                 .systemBarsPadding(), // 添加系统栏的内边距

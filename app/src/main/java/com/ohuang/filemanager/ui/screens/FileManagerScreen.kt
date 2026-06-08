@@ -5,10 +5,11 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.LazyGridState
@@ -65,6 +66,22 @@ fun FileManagerScreen(
     ) { result ->
         if (result.resultCode == android.app.Activity.RESULT_OK) {
             viewModel.loadFiles(currentPath)
+        }
+    }
+
+    // 下载权限请求（Android 10.0 之前需要）
+    var pendingDownloadFile by remember { mutableStateOf<FileItem?>(null) }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        if (permissions.all { it.value }) {
+            pendingDownloadFile?.let { file ->
+                startSystemDownload(context, file, viewModel)
+                pendingDownloadFile = null
+            }
+        } else {
+            Toast.makeText(context, "需要存储权限才能下载文件", Toast.LENGTH_SHORT).show()
+            pendingDownloadFile = null
         }
     }
 
@@ -356,9 +373,17 @@ fun FileManagerScreen(
         file = downloadFile,
         onDismiss = { viewModel.hideDownloadDialog() },
         onDownload = {
-            downloadFile?.let {
-                startSystemDownload(context, it, viewModel)
+            downloadFile?.let { file ->
                 viewModel.hideDownloadDialog()
+                // Android 10.0 (API 29) 及以上版本不需要请求存储权限
+                // Android 10.0 之前需要检查并请求读写权限
+                if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q) {
+                    checkStoragePermissionAndDownload(context, file, viewModel, permissionLauncher) {
+                        pendingDownloadFile = file
+                    }
+                } else {
+                    startSystemDownload(context, file, viewModel)
+                }
             }
         }
     )
@@ -379,9 +404,35 @@ fun FileManagerScreen(
  */
 private fun getFileUrl(viewModel: FileViewModel, file: FileItem): String {
     val fullPath = viewModel.getFullPath(file)
-    val baseUrl = com.ohuang.filemanager.config.HttpConfig.getBaseUrl()
-    val encodedPath = java.net.URLEncoder.encode(fullPath, "UTF-8").replace("+", "%20")
     return ApiService.getDownloadPath(fullPath, file.isFolder)
+}
+
+/**
+ * 检查存储权限并下载（Android 10.0 之前版本）
+ */
+private fun checkStoragePermissionAndDownload(
+    context: Context,
+    file: FileItem,
+    viewModel: FileViewModel,
+    permissionLauncher: androidx.activity.result.ActivityResultLauncher<Array<String>>,
+    onPermissionNeeded: () -> Unit
+) {
+    val readPermission = android.Manifest.permission.READ_EXTERNAL_STORAGE
+    val writePermission = android.Manifest.permission.WRITE_EXTERNAL_STORAGE
+    
+    val hasReadPermission = android.content.pm.PackageManager.PERMISSION_GRANTED ==
+            context.checkSelfPermission(readPermission)
+    val hasWritePermission = android.content.pm.PackageManager.PERMISSION_GRANTED ==
+            context.checkSelfPermission(writePermission)
+    
+    if (hasReadPermission && hasWritePermission) {
+        // 已有权限，直接下载
+        startSystemDownload(context, file, viewModel)
+    } else {
+        // 需要请求权限
+        onPermissionNeeded()
+        permissionLauncher.launch(arrayOf(readPermission, writePermission))
+    }
 }
 
 /**

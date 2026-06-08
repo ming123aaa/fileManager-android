@@ -141,6 +141,7 @@ fun rememberGridColumns(deviceType: DeviceType): Int {
     }
     return remember(widthDp, deviceType) {
         when {
+            widthDp >= 1680 -> widthDp/240
             widthDp >= 1200 -> 6
             widthDp >= 900 -> 5
             widthDp >= 720 -> 4

@@ -16,6 +16,8 @@ enum class FileType(val icon: androidx.compose.ui.graphics.vector.ImageVector, v
     PDF(Icons.Default.PictureAsPdf, Color(0xFFE74C3C)),
     ZIP(Icons.Default.FolderZip, Color(0xFFF39C12)),
     EXE(Icons.Default.Settings, Color(0xFF7F8C8D)),
+
+    APK(Icons.Default.Android, Color(0xFF27AE60)),
     OTHER(Icons.Default.InsertDriveFile, Color(0xFF7F8C8D));
 
 
@@ -43,7 +45,7 @@ enum class FileType(val icon: androidx.compose.ui.graphics.vector.ImageVector, v
             "zip" to ZIP, "rar" to ZIP, "7z" to ZIP, "tar" to ZIP,
             "gz" to ZIP, "bz2" to ZIP, "xz" to ZIP,
             "exe" to EXE, "msi" to EXE, "dmg" to EXE, "app" to EXE,
-            "deb" to EXE, "rpm" to EXE
+            "deb" to EXE, "rpm" to EXE,"apk" to APK
         )
 
         fun getFileType(name: String): FileType {

@@ -5,7 +5,7 @@ import android.widget.Toast
 import com.ohuang.filemanager.util.SPUtil
 
 object HttpConfig {
-    private const val DEFAULT_BASE_URL = "http://192.168.8.5:8080"
+    private const val DEFAULT_BASE_URL = "http://192.168.8.102:8080"
 
     private var baseUrl: String = ""
 
