@@ -6,14 +6,20 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.ArrowLeft
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.ohuang.filemanager.ui.utils.DeviceType
+import com.ohuang.filemanager.ui.utils.rememberDeviceType
 import com.ohuang.filemanager.ui.viewmodel.FilterMode
 import com.ohuang.filemanager.ui.viewmodel.SortBy
 import com.ohuang.filemanager.ui.viewmodel.SortDirection
@@ -32,6 +38,8 @@ fun Toolbar(
     canGoUp: Boolean
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
+        val mDeviceType= rememberDeviceType()
+        val spacerWith=if (mDeviceType==DeviceType.TABLET)8.dp else 4.dp
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -39,23 +47,23 @@ fun Toolbar(
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onGoUpClick) {
+            IconButton (onClick = onGoUpClick) {
                 Icon(
-                    imageVector = Icons.Default.ArrowUpward,
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Go up",
                     tint = if (canGoUp) MaterialTheme.colorScheme.onSurface 
                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
                 )
             }
 
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(spacerWith))
 
             FilterDropdown(
                 filterMode = filterMode,
                 onFilterModeChanged = onFilterModeChanged
             )
 
-            Spacer(modifier = Modifier.weight(1f))
+
 
             SortSelector(
                 sortBy = sortBy,
@@ -64,7 +72,9 @@ fun Toolbar(
                 onSortDirectionChanged = onSortDirectionChanged
             )
 
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(spacerWith))
+
+            Spacer(modifier = Modifier.weight(1f))
 
             IconButton(onClick = onCreateFolderClick) {
                 Icon(
@@ -157,6 +167,8 @@ fun SortSelector(
     onSortDirectionChanged: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val mDeviceType= rememberDeviceType()
+    val spacerWith=if (mDeviceType==DeviceType.TABLET)8.dp else 4.dp
 
     Box {
         Row(
@@ -165,7 +177,7 @@ fun SortSelector(
             // 点击文字区域展开排序字段选择
             TextButton(
                 onClick = { expanded = true },
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                contentPadding = PaddingValues(horizontal =spacerWith, vertical = 4.dp)
             ) {
                 val sortText = when (sortBy) {
                     SortBy.NAME -> "名称"

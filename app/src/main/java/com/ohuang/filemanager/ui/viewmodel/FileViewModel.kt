@@ -1,7 +1,6 @@
 package com.ohuang.filemanager.ui.viewmodel
 
 import android.content.Context
-import android.widget.Toast
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.snapshots.SnapshotStateMap
@@ -11,10 +10,12 @@ import com.ohuang.filemanager.data.ApiService
 import com.ohuang.filemanager.data.FileItem
 import com.ohuang.filemanager.util.SPUtil
 import com.ohuang.kthttp.call.awaitOrNull
+import com.ohuang.kthttp.download.FileInfo
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 // 文件夹树节点数据类
 data class FolderTreeNode(
@@ -69,7 +70,8 @@ class FileViewModel : ViewModel() {
     private val _showMoveDialog = MutableStateFlow(false)
     val showMoveDialog: StateFlow<Boolean> = _showMoveDialog
 
-
+    private val _showLoadingDialog = MutableStateFlow(false)
+    val showLoadingDialog: StateFlow<Boolean> = _showLoadingDialog
 
     private val _showEditDialog = MutableStateFlow(false)
     val showEditDialog: StateFlow<Boolean> = _showEditDialog
@@ -111,7 +113,9 @@ class FileViewModel : ViewModel() {
         loadFiles()
     }
 
-    fun getLazyGridState():LazyGridState{
+
+
+    fun getLazyGridState(): LazyGridState {
         val path=_currentPath.value
         val lazyGridState= if (mLazyGridStateMap.contains(path)){
             mLazyGridStateMap[path]!!
@@ -128,22 +132,33 @@ class FileViewModel : ViewModel() {
     }
 
     fun loadFiles(path: String = "") {
-        _isLoading.value = true
-        _errorMessage.value = null
+
 
         viewModelScope.launch {
+            requestFiles(path)
+        }
+    }
 
-            val data = ApiService.getAllFiles(path).awaitOrNull { error ->
-                _errorMessage.value = error.message ?: "未知错误"
-            }
+    private suspend fun requestFiles(path: String): Boolean {
+        _isLoading.value = true
+        _errorMessage.value = null
+        val data = ApiService.getAllFiles(path).awaitOrNull { error ->
+            _errorMessage.value = error.message ?: "未知错误"
+        }
 
 
-            _isLoading.value = false
-            if (data != null) {
-                allFiles = data
-                _currentPath.value = path
-                applyFilters()
-            }
+        _isLoading.value = false
+        if (data != null) {
+            allFiles = data
+            _currentPath.value = path
+            applyFilters()
+        }
+        return data != null
+    }
+
+    suspend fun refreshFiles(){
+        if (requestFiles(_currentPath.value)){
+            showToastMessage("刷新完成")
         }
     }
 
@@ -223,6 +238,9 @@ class FileViewModel : ViewModel() {
     }
 
     fun createFolder(name: String) {
+        if (_isLoading.value){
+            return
+        }
         _isLoading.value = true
 
         viewModelScope.launch {
@@ -247,6 +265,9 @@ class FileViewModel : ViewModel() {
     }
 
     fun renameFile(file: FileItem, newName: String) {
+        if (_isLoading.value){
+            return
+        }
         _isLoading.value = true
 
         val fullPath = if (_currentPath.value.isEmpty()) file.name
@@ -274,6 +295,9 @@ class FileViewModel : ViewModel() {
     }
 
     fun deleteFile(file: FileItem) {
+        if (_isLoading.value){
+            return
+        }
         _isLoading.value = true
 
         val fullPath = if (_currentPath.value.isEmpty()) file.name
@@ -301,6 +325,9 @@ class FileViewModel : ViewModel() {
     }
 
     fun moveFile(file: FileItem, targetPath: String) {
+        if (_isLoading.value){
+            return
+        }
         _isLoading.value = true
 
         val fullPath = if (_currentPath.value.isEmpty()) file.name
@@ -327,40 +354,65 @@ class FileViewModel : ViewModel() {
         }
     }
 
-    fun readFileContent(file: FileItem) {
-        if (file.isWithinTextEditorLimit()){  //超出文本编辑的大小
-            viewModelScope.launch {
-                showToastMessage("文件过大,无法编辑")
-            }
-            return
+    suspend fun downloadFileInfo(file: FileItem): FileInfo?{
+        val fileUrl=getFileUrl(file)
+        val fileInfo= withTimeoutOrNull(1000){
+            ApiService.checkDownloadPath(fileUrl).awaitOrNull()
         }
-        _isLoading.value = true
+        return  fileInfo
+    }
 
-        val fullPath = if (_currentPath.value.isEmpty()) file.name
-        else "${_currentPath.value}/${file.name}"
+    fun readFileContent(file: FileItem) {
+
+        val fullPath = getFullPath(file)
 
         viewModelScope.launch {
-            val content = ApiService.readText(fullPath).awaitOrNull { error ->
-                _isLoading.value = false
-                showToastMessage(error.message ?: "未知错误")
+
+            val job=launch {
+                delay(100)
+                showLoadingDialog()
             }
 
-            _isLoading.value = false
+
+
+            val fileInfo=downloadFileInfo(file)
+            if (fileInfo==null){
+                showToastMessage("获取文件信息失败")
+                job.cancel()
+                hideLoadingDialog()
+                return@launch
+            }
+
+            if (file.isWithinTextEditorLimit(fileInfo.contentLength)){
+                showToastMessage("文件过大,请下载后编辑")
+                job.cancel()
+                hideLoadingDialog()
+                return@launch
+            }
+            val content = ApiService.readText(fullPath).awaitOrNull { error ->
+                showToastMessage(error.message ?: "未知错误")
+            }
+            job.cancel()
+            hideLoadingDialog()
+
 
             if (content != null) {
                 _previewFile.value = file
                 _editFileContent.value = content
-
                 _showEditDialog.value = true
             }
+
         }
     }
 
     fun saveFileContent(file: FileItem, content: String) {
+        if (_isLoading.value){
+            return
+        }
+      
         _isLoading.value = true
 
-        val fullPath = if (_currentPath.value.isEmpty()) file.name
-        else "${_currentPath.value}/${file.name}"
+        val fullPath = getFullPath(file)
 
         viewModelScope.launch {
             val result = ApiService.writeText(fullPath, content).awaitOrNull { error ->
@@ -555,13 +607,31 @@ class FileViewModel : ViewModel() {
 
 
     fun showDownloadDialog(file: FileItem) {
-        _downloadFile.value = file
-        _showDownloadDialog.value = true
+        viewModelScope.launch {
+            val fileInfo=downloadFileInfo(file)
+            if (fileInfo==null){
+                showToastMessage("获取文件信息失败")
+                _isLoading.value = false
+                return@launch
+            }
+            _downloadFile.value = file.copy(length = fileInfo.contentLength)
+            _showDownloadDialog.value = true
+        }
+
+
     }
 
     fun hideDownloadDialog() {
         _showDownloadDialog.value = false
         _downloadFile.value = null
+    }
+
+    fun showLoadingDialog() {
+        _showLoadingDialog.value = true
+    }
+
+    fun hideLoadingDialog() {
+        _showLoadingDialog.value = false
     }
 
     fun hideEditDialog() {
@@ -573,14 +643,22 @@ class FileViewModel : ViewModel() {
     fun showToastMessage(message: String) {
         _showToast.value = message
         viewModelScope.launch {
-            kotlinx.coroutines.delay(3000)
+            delay(2000)
             _showToast.value = null
         }
+    }
+    fun hideToastMessage() {
+        _showToast.value = null
     }
 
     fun getFullPath(file: FileItem): String {
         return if (_currentPath.value.isEmpty()) file.name
         else "${_currentPath.value}/${file.name}"
+    }
+
+     fun getFileUrl( file: FileItem): String {
+        val fullPath = getFullPath(file)
+        return ApiService.getDownloadPath(fullPath, file.isFolder)
     }
 }
 

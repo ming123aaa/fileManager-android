@@ -16,8 +16,8 @@ data class FileItem(
     /**
      * 是否超出文本编辑的大小
      */
-    fun isWithinTextEditorLimit(): Boolean{
-        return length>=1024*50
+    fun isWithinTextEditorLimit(size:Long=length): Boolean{
+        return size>=1024*100
     }
 
     fun formatSize(): String {

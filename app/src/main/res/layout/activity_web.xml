@@ -26,7 +26,8 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:padding="8dp"
             android:src="@drawable/ic_back"
-            android:contentDescription="返回" />
+            android:contentDescription="返回"
+       />
 
         <TextView
             android:id="@+id/tv_title"
@@ -38,7 +39,7 @@
             android:ellipsize="end"
             android:gravity="center"
             android:maxLines="1"
-            android:textColor="@android:color/white"
+
             android:textSize="16sp"
             android:textStyle="bold"
             tools:text="网页标题" />

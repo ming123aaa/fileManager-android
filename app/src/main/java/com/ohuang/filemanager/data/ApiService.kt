@@ -3,11 +3,13 @@ package com.ohuang.filemanager.data
 import com.ohuang.filemanager.config.HttpConfig
 import com.ohuang.kthttp.HttpClient
 import com.ohuang.kthttp.call.HttpCall
+import com.ohuang.kthttp.download.FileInfo
+import com.ohuang.kthttp.downloadFileInfo
 import com.ohuang.kthttp.jsonCall
 import com.ohuang.kthttp.post
 import com.ohuang.kthttp.upload.addFile
 import com.ohuang.kthttp.upload.postUploadFile
-import com.ohuang.kthttp.urlParams
+import com.ohuang.kthttp.url
 import java.io.File
 
 object ApiService {
@@ -17,7 +19,7 @@ object ApiService {
 
     fun getAllFiles(path: String): HttpCall<List<FileItem>> {
         return client.jsonCall<List<FileItem>> {
-            urlParams(HttpConfig.getBaseUrl() + BASE_PATH + "/getAllFile") {
+            url(HttpConfig.getBaseUrl() + BASE_PATH + "/getAllFile") {
                 if (path.isNotEmpty()) {
                     addParam("path", path)
                 }
@@ -27,7 +29,7 @@ object ApiService {
 
     fun getFileInfo(path: String): HttpCall<FileItem> {
         return client.jsonCall<FileItem> {
-            urlParams(HttpConfig.getBaseUrl() + BASE_PATH + "/fileInfo") {
+            url(HttpConfig.getBaseUrl() + BASE_PATH + "/fileInfo") {
                 addParam("path", path)
             }
         }
@@ -74,7 +76,7 @@ object ApiService {
 
     fun readText(path: String, encoding: String = ""): HttpCall<String> {
         return client.stringCall {
-            urlParams(HttpConfig.getBaseUrl() + BASE_PATH + "/readText") {
+            url(HttpConfig.getBaseUrl() + BASE_PATH + "/readText") {
                 addParam("path", path)
                 if (encoding.isNotEmpty()) {
                     addParam("encoding", encoding)
@@ -90,6 +92,12 @@ object ApiService {
                 addParam("path", path)
                 addParam("txt", text)
             }
+        }
+    }
+
+    fun checkDownloadPath(downloadPath: String): HttpCall<FileInfo>{
+        return client.downloadFileInfo {
+            url(downloadPath)
         }
     }
 

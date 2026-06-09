@@ -1,5 +1,6 @@
 package com.ohuang.filemanager.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -33,9 +34,9 @@ fun CreateFolderDialog(
     onCreate: (String) -> Unit
 ) {
     if (!show) return
-    
+
     var folderName by remember { mutableStateOf("") }
-    
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -63,9 +64,9 @@ fun CreateFolderDialog(
                         fontWeight = FontWeight.Bold
                     )
                 }
-                
+
                 Spacer(modifier = Modifier.height(16.dp))
-                
+
                 OutlinedTextField(
                     value = folderName,
                     onValueChange = { folderName = it },
@@ -74,9 +75,9 @@ fun CreateFolderDialog(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
-                
+
                 Spacer(modifier = Modifier.height(24.dp))
-                
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
@@ -109,9 +110,9 @@ fun RenameDialog(
     onRename: (String) -> Unit
 ) {
     if (!show || file == null) return
-    
+
     var newName by remember { mutableStateOf(file.getFileName()) }
-    
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -139,17 +140,17 @@ fun RenameDialog(
                         fontWeight = FontWeight.Bold
                     )
                 }
-                
+
                 Spacer(modifier = Modifier.height(16.dp))
-                
+
                 Text(
                     text = "将 \"${file.getFileName()}\" 重命名为:",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                
+
                 Spacer(modifier = Modifier.height(12.dp))
-                
+
                 OutlinedTextField(
                     value = newName,
                     onValueChange = { newName = it },
@@ -157,9 +158,9 @@ fun RenameDialog(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
-                
+
                 Spacer(modifier = Modifier.height(24.dp))
-                
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
@@ -192,7 +193,7 @@ fun DeleteDialog(
     onDelete: () -> Unit
 ) {
     if (!show || file == null) return
-    
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -221,9 +222,9 @@ fun DeleteDialog(
                         color = Color.Red
                     )
                 }
-                
+
                 Spacer(modifier = Modifier.height(16.dp))
-                
+
                 Text(
                     text = if (file.isFolder) {
                         "确定要删除文件夹 \"${file.getFileName()}\" 及其所有内容吗？"
@@ -233,9 +234,9 @@ fun DeleteDialog(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                
+
                 Spacer(modifier = Modifier.height(24.dp))
-                
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
@@ -396,7 +397,7 @@ fun FolderTreeItem(
                 // 选中时自动展开
                 if (!node.isExpanded && mayHaveSubfolders) {
                     onToggleFolder(node)
-                }else if (mayHaveSubfolders) {
+                } else if (mayHaveSubfolders) {
                     onToggleFolder(node)
                 }
             }
@@ -496,6 +497,7 @@ fun EditDialog(
             decorFitsSystemWindows = false // 允许 Dialog 处理系统窗口 insets
         )
     ) {
+
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -503,6 +505,7 @@ fun EditDialog(
                 .padding(horizontal = 16.dp)
                 .imePadding() // 添加输入法高度的内边距
                 .systemBarsPadding(), // 添加系统栏的内边距
+
             elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
@@ -609,9 +612,11 @@ fun EditDialog(
                     }
                 }
             }
+
         }
     }
 }
+
 @Composable
 fun DownloadDialog(
     show: Boolean,
@@ -697,7 +702,7 @@ private fun formatFileSize(size: Long): String {
 @Composable
 fun ToastMessage(message: String?) {
     if (message == null) return
-    
+
     Snackbar(
         modifier = Modifier.padding(16.dp),
         action = {
@@ -707,5 +712,48 @@ fun ToastMessage(message: String?) {
         }
     ) {
         Text(message)
+    }
+}
+
+@Composable
+fun LoadingDialog(
+    show: Boolean,
+    message: String = "加载中..."
+) {
+    if (!show) return
+
+    Dialog(
+        onDismissRequest = {},
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false
+        )
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 48.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(24.dp)
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(48.dp)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }

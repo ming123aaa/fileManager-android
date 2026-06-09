@@ -134,16 +134,8 @@ fun FileCard(
                     }
                 )
             } else {
-                if (FileType.isPreViewType(file.name)) {
-                    DropdownMenuItem(
-                        text = { Text("预览") },
-                        onClick = { onPreview(file) },
-                        leadingIcon = {
-                            Icon(Icons.Default.Visibility, contentDescription = null)
-                        }
-                    )
-                }
-                if (FileType.isEditStringType(file.name)) {
+
+                if (FileType.isEditStringType(file.name)&&!file.isWithinTextEditorLimit()) {
                     DropdownMenuItem(
                         text = { Text("编辑") },
                         onClick = { onEditString(file) },
@@ -152,6 +144,17 @@ fun FileCard(
                         }
                     )
                 }
+
+
+                DropdownMenuItem(
+                    text = { Text("预览") },
+                    onClick = { onPreview(file) },
+                    leadingIcon = {
+                        Icon(Icons.Default.Visibility, contentDescription = null)
+                    }
+                )
+
+
                 DropdownMenuItem(
                     text = { Text("下载") },
                     onClick = { onDownload(file) },
