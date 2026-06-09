@@ -528,7 +528,7 @@ private fun openFileInNewTab(context: Context, viewModel: FileViewModel, file: F
 fun ErrorState(errorMessage: String, onRetry: () -> Unit) {
     Column(
         modifier = Modifier
-            .fillMaxWidth()
+            .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .padding(64.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
