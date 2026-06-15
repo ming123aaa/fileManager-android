@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.OpenInBrowser
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -16,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.ohuang.filemanager.ServiceLauncherActivity
 import com.ohuang.filemanager.config.HttpConfig
 import com.ohuang.filemanager.data.ApiService
 import com.ohuang.kthttp.call.awaitOrNull
@@ -134,6 +136,22 @@ fun SettingsScreen(navController: NavController,onBack:()-> Unit) {
                 Text("网页版")
             }
 
+            Spacer(modifier = Modifier.height(24.dp))
+            Button(
+                onClick = {
+                    val intent = Intent(context,ServiceLauncherActivity::class.java)
+                    context.startActivity(intent)
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Wifi,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("服务端")
+            }
             Spacer(modifier = Modifier.height(24.dp))
 
             Text(

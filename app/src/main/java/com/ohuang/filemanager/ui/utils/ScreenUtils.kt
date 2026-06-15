@@ -34,12 +34,7 @@ fun rememberDeviceType(): DeviceType {
     }
 }
 
-@Composable
-fun rememberSettingScreenInRight(): Boolean {
-    val configuration = LocalConfiguration.current
-    val widthDp = configuration.screenWidthDp
-    return remember(widthDp) { widthDp > 600 }
-}
+
 
 @Composable
 fun rememberSettingScreenWidth(): Dp {

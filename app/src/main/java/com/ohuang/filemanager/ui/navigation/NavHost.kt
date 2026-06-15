@@ -4,10 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Divider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -23,7 +20,6 @@ import com.ohuang.filemanager.ui.screens.SettingsScreen
 import com.ohuang.filemanager.ui.utils.DeviceType
 import com.ohuang.filemanager.ui.utils.FragmentBox
 import com.ohuang.filemanager.ui.utils.rememberDeviceType
-import com.ohuang.filemanager.ui.utils.rememberSettingScreenInRight
 import com.ohuang.filemanager.ui.utils.rememberSettingScreenWidth
 
 @Composable

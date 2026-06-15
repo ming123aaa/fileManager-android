@@ -46,6 +46,14 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".ServiceLauncherActivity"
+            android:exported="true"
+            android:screenOrientation="unspecified"
+            android:windowSoftInputMode="adjustPan|stateHidden">
+
+        </activity>
+
 
         <activity android:name=".WebActivity"
             android:exported="true"
