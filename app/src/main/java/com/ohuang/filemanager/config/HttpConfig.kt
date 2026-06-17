@@ -2,6 +2,7 @@ package com.ohuang.filemanager.config
 
 import android.content.Context
 import android.widget.Toast
+import androidx.compose.ui.text.substring
 import com.ohuang.filemanager.util.SPUtil
 
 object HttpConfig {
@@ -14,7 +15,11 @@ object HttpConfig {
     }
 
 
-    fun saveBaseUrl(context: Context, url: String) {
+    fun saveBaseUrl(context: Context, mUrl: String) {
+        var url=mUrl
+        if(mUrl.endsWith("/")){
+            url=mUrl.substring(0,mUrl.length-1)
+        }
         SPUtil.put(context, "server_url", url)
         baseUrl = url
         Toast.makeText(context, "保存服务器配置成功", Toast.LENGTH_SHORT).show()
@@ -26,7 +31,7 @@ object HttpConfig {
 
     fun getWebUrl(isManager: Boolean = true): String {
         return if (isManager) {
-            "$baseUrl/html/file.html"
+            "$baseUrl/file.html"
         } else {
             baseUrl
         }

@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.provider.OpenableColumns
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -68,7 +69,8 @@ class UploadActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        HttpConfig.loadBaseUrl(this)
+        HttpConfig.loadBaseUrl(this.applicationContext)
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         val serviceIntent = Intent(this, UploadService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
