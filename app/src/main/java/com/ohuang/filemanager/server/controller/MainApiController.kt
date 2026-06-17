@@ -123,18 +123,7 @@ class MainApiController {
 
 
 
-    @GetMapping("/download/{name}")
-    fun downloadByName(
-        @PathVariable("name") name: String,
-    ):FileBody {
-        var fileName = name
-        if (fileName.isNotEmpty() && (fileName[0] == '/' || fileName[0] == '\\')) {
-            fileName = fileName.substring(1)
-        }
-        val file = File(getBasePath(), fileName)
-        return FileBody(file)
 
-    }
 
 
 
