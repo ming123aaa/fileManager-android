@@ -165,6 +165,9 @@ public class NetWorkUtil {
                 (WifiManager)context.getSystemService(Context.WIFI_SERVICE);
         WifiInfo wifiInfo = wifiManager.getConnectionInfo();
         int ipAddr = wifiInfo.getIpAddress();
+        if (ipAddr==0){
+            return null;
+        }
         String ipStr =  int2string(ipAddr);
         return ipStr;
     }

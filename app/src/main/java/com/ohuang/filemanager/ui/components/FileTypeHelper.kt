@@ -34,7 +34,7 @@ enum class FileType(val icon: androidx.compose.ui.graphics.vector.ImageVector, v
             "json" to TEXT, "xml" to TEXT, "yaml" to TEXT, "yml" to TEXT,
             "ini" to TEXT, "cfg" to TEXT, "conf" to TEXT, "html" to HTML, "properties" to TEXT,
             "gitignore" to CODE, "kt" to CODE, "java" to CODE, "py" to CODE,
-            "js" to CODE, "ts" to CODE, "css" to CODE,
+            "html/js" to CODE, "ts" to CODE, "html/css" to CODE,
             "php" to CODE, "c" to CODE, "cpp" to CODE, "h" to CODE,
             "go" to CODE, "rs" to CODE, "rb" to CODE, "sh" to CODE,
             "bat" to CODE, "sql" to CODE, "vue" to CODE, "jsx" to CODE,

@@ -1,6 +1,8 @@
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
+    id 'kotlin-kapt'
+    id 'com.yanzhenjie.andserver'
 }
 
 android {
@@ -20,8 +22,8 @@ android {
         applicationId "com.ohuang.filemanager"
         minSdk 24
         targetSdk 35
-        versionCode 3
-        versionName "1.2"
+        versionCode 200
+        versionName "2.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -79,6 +81,10 @@ dependencies {
     implementation "com.github.ming123aaa:KtHttp:2.0.0"
     
     implementation 'com.github.Kennyc1012:MultiStateView:2.2.0'
+    implementation 'com.yanzhenjie.andserver:api:2.1.12'
+    implementation 'com.yanzhenjie.apache:httpcore:4.4.16'
+    kapt 'com.yanzhenjie.andserver:processor:2.1.12'
+    implementation 'com.google.code.gson:gson:2.10.1'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation "androidx.compose.material3:material3-window-size-class:1.1.2"
     

@@ -7,6 +7,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Binder
 import android.os.Build
+import android.os.FileUtils
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.MutableLiveData
@@ -18,6 +19,7 @@ import com.ohuang.kthttp.call.HttpCall
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.jvm.Throws
 
@@ -137,12 +139,18 @@ class UploadService : Service() {
             call?.request({ error ->
                 call=null
                 GlobalScope.launch(Dispatchers.Main) {
+                    withContext(Dispatchers.IO){
+                        clearFileCheche()
+                    }
                     isUploading.postValue(false)
                     liveData.postValue("上传失败: ${error.message}")
                 }
             }) { _ ->
                 call=null
                 GlobalScope.launch(Dispatchers.Main) {
+                    withContext(Dispatchers.IO){
+                        clearFileCheche()
+                    }
                     liveData.postValue("上传任务完成")
                     isUploading.value = false
                 }
@@ -152,4 +160,14 @@ class UploadService : Service() {
 
 
     }
+
+    fun clearFileCheche(){
+        try {
+            val cacheDir1 = applicationContext.cacheDir
+            cacheDir1.deleteRecursively()
+        }catch (e: Throwable){
+
+        }
+    }
+
 }

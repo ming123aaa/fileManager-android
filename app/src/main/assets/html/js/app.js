@@ -505,23 +505,32 @@ function previewFile(name) {
   }
 
   if (ft && ft.type === 'image') {
+    const container = document.createElement('div');
+    container.className = 'image-container';
     const img = document.createElement('img');
     img.src = '/main/files/' + encodeURIComponent(previewPath).replace(/%2F/g, '/');
     img.alt = name;
-    body.appendChild(img);
+    container.appendChild(img);
+    body.appendChild(container);
   } else if (ft && ft.type === 'video') {
+    const container = document.createElement('div');
+    container.className = 'preview-container';
     const vid = document.createElement('video');
     vid.src = '/main/files/' + encodeURIComponent(previewPath).replace(/%2F/g, '/');
     vid.controls = true;
     vid.autoplay = true;
     vid.style.maxWidth = '100%';
-    body.appendChild(vid);
+    container.appendChild(vid);
+    body.appendChild(container);
   } else if (ft && ft.type === 'audio') {
+    const container = document.createElement('div');
+    container.className = 'preview-container';
     const aud = document.createElement('audio');
     aud.src = '/main/files/' + encodeURIComponent(previewPath).replace(/%2F/g, '/');
     aud.controls = true;
     aud.autoplay = true;
-    body.appendChild(aud);
+    container.appendChild(aud);
+    body.appendChild(container);
   } else if (isTextFile) {
     loadPreviewText();
   } else if (ext === 'pdf') {
@@ -547,9 +556,11 @@ function loadPreviewText(encoding) {
   if (encoding) params.encoding = encoding;
   
   api('readText', params).then(text => {
-    const pre = document.createElement('pre');
-    pre.textContent = text;
-    body.appendChild(pre);
+    const textarea = document.createElement('textarea');
+    textarea.className = 'preview-textarea';
+    textarea.value = text;
+    textarea.readOnly = true;
+    body.appendChild(textarea);
   }).catch(() => {
     body.innerHTML = '<p style="padding:40px;color:var(--text-secondary)">无法预览此文件</p>';
   });
@@ -560,9 +571,9 @@ function reloadPreviewText() {
   const body = document.getElementById('previewBody');
   currentEncoding = select ? select.value : '';
   
-  // 移除旧的 pre 元素
-  const oldPre = body.querySelector('pre');
-  if (oldPre) oldPre.remove();
+  // 移除旧的 textarea 元素
+  const oldTextarea = body.querySelector('textarea');
+  if (oldTextarea) oldTextarea.remove();
   
   loadPreviewText(currentEncoding);
 }
@@ -900,12 +911,8 @@ document.addEventListener('keydown', e => {
 
 document.querySelectorAll('.modal-overlay').forEach(overlay => {
   overlay.addEventListener('click', e => {
-    if (e.target === overlay) {
-      overlay.classList.remove('show');
-      if (overlay.id === 'previewModal') {
-        resetPreviewEncoding();
-      }
-    }
+    // 所有弹窗都只在点击关闭按钮或按 Escape 键时关闭
+    // 点击遮罩层不关闭弹窗
   });
 });
 
