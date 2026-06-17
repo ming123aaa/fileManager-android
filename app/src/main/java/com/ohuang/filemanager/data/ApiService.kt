@@ -103,8 +103,10 @@ object ApiService {
 
     fun getDownloadPath(fullPath: String,isFolder: Boolean=false): String{
         val baseUrl =HttpConfig.getBaseUrl()
-        val encodedPath = java.net.URLEncoder.encode(fullPath, "UTF-8").replace("%2f","/").replace("+", "%20")
-        return "${baseUrl}/main/files/$encodedPath"
+        val path = java.net.URLEncoder.encode(fullPath, "UTF-8").replace("%2f","/").replace("+", "%20")
+        val encodedPath = java.net.URLEncoder.encode(fullPath, "UTF-8").replace("+", "%20")
+        return if (isFolder){ "${baseUrl}/file.html?path=${encodedPath}"}else{"${baseUrl}/main/files/$path"}
+
 
     }
 
