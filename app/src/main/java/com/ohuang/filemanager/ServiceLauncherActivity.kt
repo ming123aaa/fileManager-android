@@ -232,7 +232,7 @@ class ServiceLauncherActivity : ComponentActivity() {
                 }
                 Spacer(modifier = Modifier.width(16.dp))
                 Button(onClick = {
-                    requestStoragePermission()
+                    onFilePathChange(getPrivateServiceFilePath())
                 }, modifier = Modifier.weight(1f)) {
                     Icon(
                         imageVector = Icons.Default.Settings,
@@ -240,7 +240,7 @@ class ServiceLauncherActivity : ComponentActivity() {
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("权限申请")
+                    Text("私有目录")
                 }
             }
 
@@ -411,9 +411,12 @@ fun getServiceFilePath(context: Context = AppContext.instance): String {
         getDefaultServiceFilePath()
     ) as String
 }
-
+fun getPrivateServiceFilePath(context: Context = AppContext.instance): String {
+    return  context.filesDir.absolutePath + "/fileManager"
+}
 fun getDefaultServiceFilePath(context: Context = AppContext.instance): String {
-    return context.filesDir.absolutePath + "/fileManager"
+    return (context.getExternalFilesDir(null)?.absolutePath
+        ?: context.filesDir.absolutePath) + "/fileManager"
 }
 
 fun setServiceFilePath(
@@ -496,7 +499,7 @@ object AndServerManager {
         if (isRunning) {
             return
         }
-        startServiceFair=false
+        startServiceFair = false
         msgList.clear()
 
         server = MutableWebServer.builder(context)
@@ -525,7 +528,7 @@ object AndServerManager {
 
                     msgList.removeIf { it.type == ServiceType.MSG }
                     Toast.makeText(context, "运行失败,请检查端口和网络", Toast.LENGTH_SHORT).show()
-                    startServiceFair=true
+                    startServiceFair = true
                     msgList.add(
                         ServiceMsg(
                             type = ServiceType.THROW,

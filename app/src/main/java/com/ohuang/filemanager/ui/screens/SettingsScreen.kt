@@ -17,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Settings
@@ -47,10 +48,12 @@ import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.navigation.NavController
 import com.ohuang.filemanager.AndServerManager
+import com.ohuang.filemanager.DataMigrationActivity
 import com.ohuang.filemanager.ServiceLauncherActivity
 import com.ohuang.filemanager.config.HttpConfig
 import com.ohuang.filemanager.data.ApiService
 import com.ohuang.filemanager.getDefaultServiceFilePath
+import com.ohuang.filemanager.getPrivateServiceFilePath
 import com.ohuang.filemanager.getServicePort
 import com.ohuang.filemanager.util.ClipboardUtils
 import com.ohuang.filemanager.util.BatteryOptimizationHelper
@@ -353,6 +356,21 @@ private fun AboutContent(context: Context) {
             Spacer(modifier = Modifier.width(8.dp))
             Text("清空内部文件")
         }
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(
+            onClick = {
+                context.startActivity(Intent(context, DataMigrationActivity::class.java))
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(
+                imageVector = Icons.Default.FileOpen,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("本地文件数据")
+        }
 
         val rememberCoroutineScope = rememberCoroutineScope()
         if (showClearDialog) {
@@ -372,6 +390,7 @@ private fun AboutContent(context: Context) {
                                 }
                                 try {
                                     File(getDefaultServiceFilePath()).deleteRecursively()
+                                    File(getPrivateServiceFilePath()).deleteRecursively()
                                 } catch (e: Throwable) {
                                 }
 

@@ -44,6 +44,7 @@
             android:name=".MainComposeActivity"
             android:exported="true"
             android:screenOrientation="unspecified"
+            android:configChanges="screenSize|orientation|keyboardHidden|mcc|mnc|fontScale|density|locale|layoutDirection"
             android:windowSoftInputMode="adjustPan|stateHidden">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -55,15 +56,24 @@
             android:name=".ServiceLauncherActivity"
             android:exported="true"
             android:screenOrientation="unspecified"
+            android:configChanges="screenSize|orientation|keyboardHidden|mcc|mnc|fontScale|density|locale|layoutDirection"
             android:windowSoftInputMode="adjustPan|stateHidden">
+
+        </activity>
+
+        <activity
+            android:name=".DataMigrationActivity"
+            android:exported="true"
+            android:screenOrientation="unspecified"
+            android:configChanges="screenSize|orientation|keyboardHidden|mcc|mnc|fontScale|density|locale|layoutDirection"
+        >
 
         </activity>
 
 
         <activity android:name=".WebActivity"
             android:exported="true"
-
-            android:configChanges="screenSize|orientation|density|fontScale"
+            android:configChanges="screenSize|orientation|keyboardHidden|mcc|mnc|fontScale|density|locale|layoutDirection"
             >
 
         </activity>
@@ -71,7 +81,7 @@
         <activity android:name=".ui.screens.UploadActivity"
             android:exported="true"
             android:launchMode="singleTop"
-            android:configChanges="screenSize|orientation|density|fontScale">
+            android:configChanges="screenSize|orientation|keyboardHidden|mcc|mnc|fontScale|density|locale|layoutDirection">
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
 
@@ -85,6 +95,7 @@
             android:name=".service.UploadService"
             android:enabled="true"
             android:foregroundServiceType="dataSync"
+            android:configChanges="screenSize|orientation|keyboardHidden|mcc|mnc|fontScale|density|locale|layoutDirection"
             android:exported="true" />
     </application>
 
