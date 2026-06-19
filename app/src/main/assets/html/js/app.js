@@ -301,10 +301,7 @@ function renderPreviewView(container) {
       const filePath = currentPath ? currentPath + '/' + f.name : f.name;
       thumbnailHtml = `<div class="video-placeholder">
         <span class="material-icons video-loading-icon">movie</span>
-        <video class="preview-thumbnail lazy-video" data-src="/main/files/${encodeURIComponent(filePath).replace(/%2F/g, '/')}" preload="metadata" muted onloadeddata="this.style.opacity='1';this.previousElementSibling.style.display='none'" onemptied="this.style.opacity='0';this.previousElementSibling.style.display='block'" onpause="this.classList.remove('playing')" onclick="event.stopPropagation();this.muted=false;this.play();this.classList.add('playing')"></video>
-        <div class="video-overlay" onclick="event.stopPropagation();var v=this.parentElement.querySelector('video');v.muted=false;v.play();v.classList.add('playing');this.style.display='none'">
-          <span class="material-icons" style="font-size:40px;color:rgba(255,255,255,0.9)">play_circle</span>
-        </div>
+        <video class="preview-thumbnail lazy-video" data-src="/main/files/${encodeURIComponent(filePath).replace(/%2F/g, '/')}" preload="metadata" muted onloadeddata="this.style.opacity='1';this.previousElementSibling.style.display='none'" onemptied="this.style.opacity='0';this.previousElementSibling.style.display='block'"></video>
       </div>`;
     }
     

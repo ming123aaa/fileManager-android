@@ -38,7 +38,10 @@ fun Toolbar(
     onGoUpClick: () -> Unit,
     canGoUp: Boolean,
     viewMode: ViewMode = ViewMode.GRID,
-    onViewModeChanged: (ViewMode) -> Unit = {}
+    onViewModeChanged: (ViewMode) -> Unit = {},
+    // 多选模式相关
+    isMultiSelectMode: Boolean = false,
+    onToggleMultiSelectMode: () -> Unit = {}
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         val mDeviceType= rememberDeviceType()
@@ -84,6 +87,16 @@ fun Toolbar(
             )
 
             Spacer(modifier = Modifier.weight(1f))
+
+            // 多选模式按钮
+            IconButton(onClick = onToggleMultiSelectMode) {
+                Icon(
+                    imageVector = if (isMultiSelectMode) Icons.Default.Close else Icons.Default.CheckCircle,
+                    contentDescription = if (isMultiSelectMode) "退出多选" else "多选",
+                    tint = if (isMultiSelectMode) MaterialTheme.colorScheme.error
+                           else MaterialTheme.colorScheme.onSurface
+                )
+            }
 
             IconButton(onClick = onCreateFolderClick) {
                 Icon(

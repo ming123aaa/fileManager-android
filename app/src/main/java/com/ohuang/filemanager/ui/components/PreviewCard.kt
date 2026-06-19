@@ -2,8 +2,11 @@ package com.ohuang.filemanager.ui.components
 
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -34,6 +37,9 @@ fun PreviewCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit = {},
     isSelected: Boolean = false,
+    // 多选模式相关
+    isMultiSelectMode: Boolean = false,
+    onToggleSelection: () -> Unit = {},
     showContextMenu: Boolean = false,
     onContextMenuDismiss: () -> Unit = {},
     onOpen: (FileItem) -> Unit = {},
@@ -55,8 +61,18 @@ fun PreviewCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .combinedClickable(
-                    onClick = onClick,
-                    onLongClick = onLongClick
+                    onClick = {
+                        if (isMultiSelectMode) {
+                            onToggleSelection()
+                        } else {
+                            onClick()
+                        }
+                    },
+                    onLongClick = {
+                        if (!isMultiSelectMode) {
+                            onLongClick()
+                        }
+                    }
                 )
                 .padding(4.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
@@ -65,51 +81,65 @@ fun PreviewCard(
                 else MaterialTheme.colorScheme.surface
             )
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .animateContentSize()
-            ) {
-                // 缩略图区域
-                Box(
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .aspectRatio(16f / 9f)
-                        .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)),
-                    contentAlignment = Alignment.Center
+                        .animateContentSize()
                 ) {
-                    when {
-                        isImage -> {
-                            // 图片缩略图
-                            AsyncImage(
-                                model = fileUrl,
-                                contentDescription = file.name,
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
-                        }
-                        isVideo -> {
-                            // 视频缩略图（使用 MediaMetadataRetriever 提取视频帧）
-                            VideoThumbnail(
-                                videoUrl = fileUrl,
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
-                            // 视频播放图标覆盖层
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.PlayCircle,
-                                    contentDescription = "视频",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(48.dp)
+                    // 缩略图区域
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(16f / 9f)
+                            .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        when {
+                            isImage -> {
+                                // 图片缩略图
+                                AsyncImage(
+                                    model = fileUrl,
+                                    contentDescription = file.name,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
                                 )
                             }
+                            isVideo -> {
+                                // 视频缩略图（使用 MediaMetadataRetriever 提取视频帧）
+                                VideoThumbnail(
+                                    videoUrl = fileUrl,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                                // 视频播放图标覆盖层
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.PlayCircle,
+                                        contentDescription = "视频",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(48.dp)
+                                    )
+                                }
+                            }
+                            else -> {
+                                // 非图片/视频文件，显示文件图标
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    FileIcon(file = file, size = 64.dp)
+                                }
+                            }
                         }
-                        else -> {
-                            // 非图片/视频文件，显示文件图标
+
+                        // 文件夹图标覆盖层
+                        if (file.isFolder) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -121,53 +151,69 @@ fun PreviewCard(
                         }
                     }
 
-                    // 文件夹图标覆盖层
-                    if (file.isFolder) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            FileIcon(file = file, size = 64.dp)
-                        }
+                    // 文件信息区域
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp)
+                    ) {
+                        Text(
+                            text = file.getFileName(),
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = if (file.isFolder) FontWeight.Medium else FontWeight.Normal
+                            ),
+                            color = if (file.isFolder) Color(0xFFF59E0B) else MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+
+                            Text(
+                                text = file.formatSize(),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = file.formatDate(),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
                     }
                 }
 
-                // 文件信息区域
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp)
-                ) {
-                    Text(
-                        text = file.getFileName(),
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontWeight = if (file.isFolder) FontWeight.Medium else FontWeight.Normal
-                        ),
-                        color = if (file.isFolder) Color(0xFFF59E0B) else MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                // 多选模式下显示选中指示器
+                if (isMultiSelectMode) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp)
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .border(
+                                width = 2.dp,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.outline,
+                                shape = CircleShape
+                            )
+                            .background(
+                                if (isSelected) MaterialTheme.colorScheme.primary
+                                else Color.Transparent,
+                                shape = CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = file.formatSize(),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = file.formatDate(),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        if (isSelected) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = "Selected",
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
             }

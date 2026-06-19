@@ -2,6 +2,9 @@ package com.ohuang.filemanager.ui.screens
 
 import android.content.Context
 import android.content.Intent
+import android.os.Build
+import android.os.Environment
+import android.os.StatFs
 import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -17,11 +20,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SettingsPower
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -36,6 +41,7 @@ import androidx.compose.material3.SmallTopAppBar
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -340,8 +346,14 @@ private fun AboutContent(context: Context) {
             }
         }
 
-        var showClearDialog by remember { mutableStateOf(false) }
         Spacer(modifier = Modifier.height(16.dp))
+
+        // 清理缓存功能
+        CacheCleanerCard(context)
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        var showClearDialog by remember { mutableStateOf(false) }
         Button(
             onClick = {
                 showClearDialog = true
@@ -427,5 +439,192 @@ private fun getAppVersion(context: android.content.Context): String {
         packageInfo.versionName ?: "1.0.0"
     } catch (e: Exception) {
         "1.0.0"
+    }
+}
+
+/**
+ * 清理缓存卡片组件
+ */
+@Composable
+private fun CacheCleanerCard(context: Context) {
+    var cacheSize by remember { mutableStateOf("计算中...") }
+    var showConfirmDialog by remember { mutableStateOf(false) }
+
+    // 计算缓存大小
+    LaunchedEffect(Unit) {
+        cacheSize = calculateCacheSize(context)
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Storage,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "清理缓存",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        text = "当前缓存: $cacheSize",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Button(
+                onClick = { showConfirmDialog = true },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = cacheSize != "计算中..." && cacheSize != "0 B"
+            ) {
+                Icon(
+                    imageVector = Icons.Default.DeleteSweep,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("清理缓存")
+            }
+        }
+    }
+
+    // 确认对话框
+    if (showConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showConfirmDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.DeleteSweep,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            },
+            title = { Text("清理缓存") },
+            text = { Text("确定要清理应用缓存吗？这将删除缩略图和临时文件。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showConfirmDialog = false
+                        clearCache(context) {
+                            cacheSize = calculateCacheSize(context)
+                        }
+                    }
+                ) {
+                    Text("确定")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirmDialog = false }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
+}
+
+/**
+ * 计算应用缓存大小
+ */
+private fun calculateCacheSize(context: Context): String {
+    return try {
+        var totalSize = 0L
+
+        // 应用内部缓存
+        context.cacheDir?.let { cacheDir ->
+            totalSize += getFolderSize(cacheDir)
+        }
+
+        // 应用外部缓存
+        context.externalCacheDir?.let { externalCacheDir ->
+            totalSize += getFolderSize(externalCacheDir)
+        }
+
+        // Coil 图片缓存
+        val imageCachePath = "${context.cacheDir}/image_cache"
+        totalSize += getFolderSize(java.io.File(imageCachePath))
+
+        formatFileSize(totalSize)
+    } catch (e: Exception) {
+        "未知"
+    }
+}
+
+/**
+ * 获取文件夹大小
+ */
+private fun getFolderSize(file: java.io.File): Long {
+    var size: Long = 0
+    try {
+        if (file.isDirectory) {
+            file.listFiles()?.forEach { child ->
+                size += getFolderSize(child)
+            }
+        } else {
+            size += file.length()
+        }
+    } catch (e: Exception) {
+        // 忽略异常
+    }
+    return size
+}
+
+/**
+ * 格式化文件大小
+ */
+private fun formatFileSize(size: Long): String {
+    return when {
+        size < 1024 -> "$size B"
+        size < 1024 * 1024 -> String.format("%.2f KB", size / 1024.0)
+        size < 1024 * 1024 * 1024 -> String.format("%.2f MB", size / (1024.0 * 1024.0))
+        else -> String.format("%.2f GB", size / (1024.0 * 1024.0 * 1024.0))
+    }
+}
+
+/**
+ * 清理应用缓存
+ */
+private fun clearCache(context: Context, onComplete: () -> Unit) {
+    kotlinx.coroutines.MainScope().launch {
+        Toast.makeText(context, "正在清理缓存...", Toast.LENGTH_SHORT).show()
+
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                // 清理内部缓存
+                context.cacheDir?.deleteRecursively()
+
+                // 清理外部缓存
+                context.externalCacheDir?.deleteRecursively()
+
+                // 清理 Coil 图片缓存
+                val imageCachePath = "${context.cacheDir}/image_cache"
+                java.io.File(imageCachePath).deleteRecursively()
+
+                // 清理缩略图缓存
+                val thumbnailPath = "${context.cacheDir}/thumbnails"
+                java.io.File(thumbnailPath).deleteRecursively()
+
+                // 重建目录
+                context.cacheDir?.mkdirs()
+                context.externalCacheDir?.mkdirs()
+            } catch (e: Exception) {
+                // 忽略异常
+            }
+        }
+
+        Toast.makeText(context, "缓存清理完成", Toast.LENGTH_SHORT).show()
+        onComplete()
     }
 }

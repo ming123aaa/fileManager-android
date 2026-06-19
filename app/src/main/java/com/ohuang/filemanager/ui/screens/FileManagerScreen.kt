@@ -20,6 +20,10 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DriveFileMove
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -125,6 +129,12 @@ fun FileManagerScreen(
     val folderTree by viewModel.folderTree.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
 
+    // 多选模式相关状态
+    val isMultiSelectMode by viewModel.isMultiSelectMode.collectAsState()
+    val selectedFiles by viewModel.selectedFiles.collectAsState()
+    val showBatchDeleteDialog by viewModel.showBatchDeleteDialog.collectAsState()
+    val showBatchMoveDialog by viewModel.showBatchMoveDialog.collectAsState()
+
     Scaffold(
         topBar = {
             SmallTopAppBar(
@@ -167,6 +177,20 @@ fun FileManagerScreen(
                     }
                 }
             )
+        },
+        // 多选模式下显示底部操作栏
+        bottomBar = {
+            if (isMultiSelectMode) {
+                MultiSelectBottomBar(
+                    selectedCount = selectedFiles.size,
+                    totalCount = files.size,
+                    onSelectAll = { viewModel.selectAllFiles() },
+                    onDeselectAll = { viewModel.deselectAllFiles() },
+                    onDelete = { viewModel.showBatchDeleteDialog() },
+                    onMove = { viewModel.showBatchMoveDialog() },
+                    onCancel = { viewModel.exitMultiSelectMode() }
+                )
+            }
         }
     ) { paddingValues ->
         Box(modifier = Modifier.padding(paddingValues)) {
@@ -200,7 +224,10 @@ fun FileManagerScreen(
                     onViewModeChanged = { newMode ->
                         viewModel.setViewMode(newMode)
                         SPUtil.put(context, "fm_viewMode", newMode.name)
-                    }
+                    },
+                    // 多选模式参数
+                    isMultiSelectMode = isMultiSelectMode,
+                    onToggleMultiSelectMode = { viewModel.toggleMultiSelectMode() }
                 )
 
                 Divider()
@@ -291,7 +318,11 @@ fun FileManagerScreen(
                         },
                         onOpenInNew = { file ->
                             openFileInNewTab(context, viewModel, file)
-                        }
+                        },
+                        // 多选模式相关参数
+                        isMultiSelectMode = isMultiSelectMode,
+                        selectedFiles = selectedFiles,
+                        onToggleFileSelection = { file -> viewModel.toggleFileSelection(file) }
                     )
 
                     var isShowLoading by remember {
@@ -432,6 +463,26 @@ fun FileManagerScreen(
     )
 
     LoadingDialog(show = showLoadingDialog)
+
+    // 批量删除对话框
+    BatchDeleteDialog(
+        show = showBatchDeleteDialog,
+        selectedFiles = selectedFiles,
+        onDismiss = { viewModel.hideBatchDeleteDialog() },
+        onDelete = { viewModel.deleteSelectedFiles() }
+    )
+
+    // 批量移动对话框
+    BatchMoveDialog(
+        show = showBatchMoveDialog,
+        selectedFiles = selectedFiles,
+        folderTree = folderTree,
+        selectedPath = moveTargetPath,
+        onDismiss = { viewModel.hideBatchMoveDialog() },
+        onMove = { targetPath -> viewModel.moveSelectedFiles(targetPath) },
+        onToggleFolder = { node -> viewModel.toggleFolder(node) },
+        onSelectPath = { path -> viewModel.setMoveTargetPath(path) }
+    )
 }
 
 /**
@@ -566,6 +617,100 @@ fun ErrorState(errorMessage: String, onRetry: () -> Unit) {
 
         Button(onClick = onRetry) {
             Text("重试")
+        }
+    }
+}
+
+/**
+ * 多选模式底部操作栏
+ */
+@Composable
+fun MultiSelectBottomBar(
+    selectedCount: Int,
+    totalCount: Int,
+    onSelectAll: () -> Unit,
+    onDeselectAll: () -> Unit,
+    onDelete: () -> Unit,
+    onMove: () -> Unit,
+    onCancel: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        tonalElevation = 8.dp,
+        color = MaterialTheme.colorScheme.surfaceVariant
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            // 选中数量提示
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "已选中 $selectedCount / $totalCount 项",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row {
+                    TextButton(onClick = onSelectAll) {
+                        Text("全选")
+                    }
+                    TextButton(onClick = onDeselectAll) {
+                        Text("取消全选")
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // 操作按钮
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // 删除按钮
+                Button(
+                    onClick = onDelete,
+                    enabled = selectedCount > 0,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    ),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("删除")
+                }
+
+                // 移动按钮
+                Button(
+                    onClick = onMove,
+                    enabled = selectedCount > 0,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DriveFileMove,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("移动")
+                }
+
+                // 取消按钮
+                OutlinedButton(
+                    onClick = onCancel,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("取消")
+                }
+            }
         }
     }
 }

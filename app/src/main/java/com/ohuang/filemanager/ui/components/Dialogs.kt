@@ -757,3 +757,198 @@ fun LoadingDialog(
         }
     }
 }
+
+/**
+ * 批量删除对话框
+ */
+@Composable
+fun BatchDeleteDialog(
+    show: Boolean,
+    selectedFiles: Set<FileItem>,
+    onDismiss: () -> Unit,
+    onDelete: () -> Unit
+) {
+    if (!show || selectedFiles.isEmpty()) return
+
+    val folderCount = selectedFiles.count { it.isFolder }
+    val fileCount = selectedFiles.count { !it.isFolder }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Delete",
+                        tint = Color.Red
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "批量删除确认",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Red
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = buildString {
+                        append("确定要删除选中的 ${selectedFiles.size} 个项目吗？\n")
+                        if (folderCount > 0) append("文件夹: $folderCount 个\n")
+                        if (fileCount > 0) append("文件: $fileCount 个")
+                    }.trim(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("取消")
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Button(
+                        onClick = onDelete,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                    ) {
+                        Text("删除 (${selectedFiles.size})")
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 批量移动对话框
+ */
+@Composable
+fun BatchMoveDialog(
+    show: Boolean,
+    selectedFiles: Set<FileItem>,
+    folderTree: List<FolderTreeNode>,
+    selectedPath: String,
+    onDismiss: () -> Unit,
+    onMove: (targetPath: String) -> Unit,
+    onToggleFolder: (FolderTreeNode) -> Unit,
+    onSelectPath: (String) -> Unit
+) {
+    if (!show || selectedFiles.isEmpty()) return
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DriveFileMove,
+                        contentDescription = "Move",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "批量移动",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                val folderCount = selectedFiles.count { it.isFolder }
+                val fileCount = selectedFiles.count { !it.isFolder }
+                Text(
+                    text = buildString {
+                        append("已选中 ${selectedFiles.size} 个项目\n")
+                        if (folderCount > 0) append("文件夹: $folderCount 个\n")
+                        if (fileCount > 0) append("文件: $fileCount 个")
+                    }.trim(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "选择目标位置:",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // 文件夹树
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 300.dp)
+                        .verticalScroll(rememberScrollState())
+                        .border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.outline,
+                            shape = MaterialTheme.shapes.small
+                        )
+                        .padding(8.dp)
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        folderTree.forEach { node ->
+                            FolderTreeItem(
+                                node = node,
+                                depth = 0,
+                                selectedPath = selectedPath,
+                                onToggleFolder = onToggleFolder,
+                                onSelectPath = onSelectPath
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("取消")
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Button(
+                        onClick = {
+                            onMove(selectedPath)
+                        }
+                    ) {
+                        Text("移动 (${selectedFiles.size})")
+                    }
+                }
+            }
+        }
+    }
+}

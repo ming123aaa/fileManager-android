@@ -53,7 +53,11 @@ fun FileList(
     onDelete: (FileItem) -> Unit = {},
     onMove: (FileItem) -> Unit = {},
     onCopyLink: (FileItem) -> Unit = {},
-    onOpenInNew: (FileItem) -> Unit = {}
+    onOpenInNew: (FileItem) -> Unit = {},
+    // 多选模式相关参数
+    isMultiSelectMode: Boolean = false,
+    selectedFiles: Set<FileItem> = emptySet(),
+    onToggleFileSelection: (FileItem) -> Unit = {}
 ) {
 
     val deviceType = rememberDeviceType()
@@ -107,6 +111,8 @@ fun FileList(
                 state = lazyGridState
             ) {
                 items(files) { file ->
+                    val isFileSelected = selectedFiles.contains(file)
+                    
                     if (viewMode == ViewMode.PREVIEW) {
                         // 预览模式卡片
                         PreviewCard(
@@ -116,7 +122,9 @@ fun FileList(
                             onLongClick = {
                                 contextMenuFile = file
                             },
-                            isSelected = selectedFile?.name == file.name,
+                            isSelected = isFileSelected,
+                            isMultiSelectMode = isMultiSelectMode,
+                            onToggleSelection = { onToggleFileSelection(file) },
                             showContextMenu = contextMenuFile == file,
                             onContextMenuDismiss = {
                                 contextMenuFile = null
@@ -166,7 +174,9 @@ fun FileList(
                             onLongClick = {
                                 contextMenuFile = file
                             },
-                            isSelected = selectedFile?.name == file.name,
+                            isSelected = isFileSelected,
+                            isMultiSelectMode = isMultiSelectMode,
+                            onToggleSelection = { onToggleFileSelection(file) },
                             showContextMenu = contextMenuFile == file,
                             onContextMenuDismiss = {
                                 contextMenuFile = null

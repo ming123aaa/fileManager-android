@@ -88,6 +88,21 @@ class FileViewModel : ViewModel() {
     private val _showDownloadDialog = MutableStateFlow(false)
     val showDownloadDialog: StateFlow<Boolean> = _showDownloadDialog
 
+    // 多选模式相关状态
+    private val _isMultiSelectMode = MutableStateFlow(false)
+    val isMultiSelectMode: StateFlow<Boolean> = _isMultiSelectMode
+
+    private val _selectedFiles = MutableStateFlow<Set<FileItem>>(emptySet())
+    val selectedFiles: StateFlow<Set<FileItem>> = _selectedFiles
+
+    // 批量删除对话框
+    private val _showBatchDeleteDialog = MutableStateFlow(false)
+    val showBatchDeleteDialog: StateFlow<Boolean> = _showBatchDeleteDialog
+
+    // 批量移动对话框
+    private val _showBatchMoveDialog = MutableStateFlow(false)
+    val showBatchMoveDialog: StateFlow<Boolean> = _showBatchMoveDialog
+
     private val _previewFile = MutableStateFlow<FileItem?>(null)
     val previewFile: StateFlow<FileItem?> = _previewFile
 
@@ -690,6 +705,204 @@ class FileViewModel : ViewModel() {
      fun getFileUrl( file: FileItem): String {
         val fullPath = getFullPath(file)
         return ApiService.getDownloadPath(fullPath, file.isFolder)
+    }
+
+    // ========== 多选功能相关方法 ==========
+
+    /**
+     * 切换多选模式
+     */
+    fun toggleMultiSelectMode() {
+        _isMultiSelectMode.value = !_isMultiSelectMode.value
+        if (!_isMultiSelectMode.value) {
+            // 退出多选模式时清空选中项
+            _selectedFiles.value = emptySet()
+        }
+    }
+
+    /**
+     * 进入多选模式
+     */
+    fun enterMultiSelectMode() {
+        _isMultiSelectMode.value = true
+    }
+
+    /**
+     * 退出多选模式
+     */
+    fun exitMultiSelectMode() {
+        _isMultiSelectMode.value = false
+        _selectedFiles.value = emptySet()
+    }
+
+    /**
+     * 切换文件的选中状态
+     */
+    fun toggleFileSelection(file: FileItem) {
+        val currentSelected = _selectedFiles.value.toMutableSet()
+        if (currentSelected.contains(file)) {
+            currentSelected.remove(file)
+        } else {
+            currentSelected.add(file)
+        }
+        _selectedFiles.value = currentSelected
+    }
+
+    /**
+     * 选择文件
+     */
+    fun selectFile(file: FileItem) {
+        val currentSelected = _selectedFiles.value.toMutableSet()
+        currentSelected.add(file)
+        _selectedFiles.value = currentSelected
+    }
+
+    /**
+     * 取消选择文件
+     */
+    fun deselectFile(file: FileItem) {
+        val currentSelected = _selectedFiles.value.toMutableSet()
+        currentSelected.remove(file)
+        _selectedFiles.value = currentSelected
+    }
+
+    /**
+     * 全选当前目录下的所有文件
+     */
+    fun selectAllFiles() {
+        _selectedFiles.value = _files.value.toSet()
+    }
+
+    /**
+     * 取消全选
+     */
+    fun deselectAllFiles() {
+        _selectedFiles.value = emptySet()
+    }
+
+    /**
+     * 显示批量删除对话框
+     */
+    fun showBatchDeleteDialog() {
+        if (_selectedFiles.value.isNotEmpty()) {
+            _showBatchDeleteDialog.value = true
+        }
+    }
+
+    /**
+     * 隐藏批量删除对话框
+     */
+    fun hideBatchDeleteDialog() {
+        _showBatchDeleteDialog.value = false
+    }
+
+    /**
+     * 显示批量移动对话框
+     */
+    fun showBatchMoveDialog() {
+        if (_selectedFiles.value.isNotEmpty()) {
+            _moveTargetPath.value = ""
+            _showBatchMoveDialog.value = true
+            loadFolderTree("")
+        }
+    }
+
+    /**
+     * 隐藏批量移动对话框
+     */
+    fun hideBatchMoveDialog() {
+        _showBatchMoveDialog.value = false
+        _moveTargetPath.value = ""
+        _folderTree.value = emptyList()
+    }
+
+    /**
+     * 批量删除选中的文件
+     */
+    fun deleteSelectedFiles() {
+        if (_isLoading.value || _selectedFiles.value.isEmpty()) {
+            return
+        }
+        _isLoading.value = true
+
+        viewModelScope.launch {
+            var successCount = 0
+            var failCount = 0
+
+            for (file in _selectedFiles.value) {
+                val fullPath = if (_currentPath.value.isEmpty()) file.name
+                else "${_currentPath.value}/${file.name}"
+
+                val result = ApiService.deleteFile(fullPath).awaitOrNull()
+                if (result != null && result.contains("成功")) {
+                    successCount++
+                } else {
+                    failCount++
+                }
+            }
+
+            _isLoading.value = false
+            _showBatchDeleteDialog.value = false
+
+            val message = when {
+                failCount == 0 -> "成功删除 $successCount 个项目"
+                successCount == 0 -> "删除失败"
+                else -> "成功删除 $successCount 个，失败 $failCount 个"
+            }
+            showToastMessage(message)
+
+            // 清空选中项并退出多选模式
+            _selectedFiles.value = emptySet()
+            _isMultiSelectMode.value = false
+
+            // 刷新文件列表
+            loadFiles(_currentPath.value)
+        }
+    }
+
+    /**
+     * 批量移动选中的文件
+     */
+    fun moveSelectedFiles(targetPath: String) {
+        if (_isLoading.value || _selectedFiles.value.isEmpty()) {
+            return
+        }
+        _isLoading.value = true
+
+        viewModelScope.launch {
+            var successCount = 0
+            var failCount = 0
+
+            for (file in _selectedFiles.value) {
+                val fullPath = if (_currentPath.value.isEmpty()) file.name
+                else "${_currentPath.value}/${file.name}"
+
+                val result = ApiService.moveFile(fullPath, targetPath).awaitOrNull()
+                if (result != null && result.contains("成功")) {
+                    successCount++
+                } else {
+                    failCount++
+                }
+            }
+
+            _isLoading.value = false
+            _showBatchMoveDialog.value = false
+
+            val message = when {
+                failCount == 0 -> "成功移动 $successCount 个项目"
+                successCount == 0 -> "移动失败"
+                else -> "成功移动 $successCount 个，失败 $failCount 个"
+            }
+            showToastMessage(message)
+
+            // 清空选中项并退出多选模式
+            _selectedFiles.value = emptySet()
+            _isMultiSelectMode.value = false
+            _folderTree.value = emptyList()
+
+            // 刷新文件列表
+            loadFiles(_currentPath.value)
+        }
     }
 }
 
