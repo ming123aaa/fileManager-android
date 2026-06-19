@@ -120,7 +120,7 @@ fun PreviewCard(
                                     Icon(
                                         imageVector = Icons.Default.PlayCircle,
                                         contentDescription = "视频",
-                                        tint = Color.White,
+                                        tint = Color(0xe0eeeeee),
                                         modifier = Modifier.size(48.dp)
                                     )
                                 }

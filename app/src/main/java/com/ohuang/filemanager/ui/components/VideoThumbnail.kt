@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.*
 
@@ -67,6 +68,8 @@ fun VideoThumbnail(
             isLoading.value = false
             return@LaunchedEffect
         }
+
+        delay(100)
 
         job = scope.launch(Dispatchers.IO) {
             val retriever = MediaMetadataRetriever()

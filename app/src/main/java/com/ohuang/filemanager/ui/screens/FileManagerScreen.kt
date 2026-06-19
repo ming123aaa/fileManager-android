@@ -34,6 +34,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.ohuang.filemanager.config.HttpConfig
 import com.ohuang.filemanager.data.FileItem
+import com.ohuang.filemanager.MediaFileInfo
+import com.ohuang.filemanager.MediaPreviewActivity
 import com.ohuang.filemanager.ui.components.*
 import com.ohuang.filemanager.ui.utils.rememberDeviceType
 import com.ohuang.filemanager.ui.utils.rememberGridColumns
@@ -103,7 +105,9 @@ fun FileManagerScreen(
     }
     BackHandler {
 
-        if (viewModel.currentPath.value.isNotEmpty()) {
+        if (viewModel.isMultiSelectMode.value){
+            viewModel.exitMultiSelectMode()
+        }else if (viewModel.currentPath.value.isNotEmpty()) {
             viewModel.goUp()
         } else {
             onBack()
@@ -275,15 +279,33 @@ fun FileManagerScreen(
                                 viewModel.setSelectedFile(null)
                             } else {
                                 viewModel.setSelectedFile(file)
-                                // 根据文件类型决定操作
-                                val canPreview = FileType.isPreViewType(file.name)
+                                val fileType = FileType.getFileType(file.name)
                                 val canEdit = FileType.isEditStringType(file.name)
 
-                                if (canPreview) {
-                                    // 可预览 -> 打开 WebView
+                                if (FileType.isMediaType(file.name)) {
+                                    // 图片或视频 -> 打开媒体预览
+                                    val mediaFiles = files.filter {
+                                        FileType.isMediaType(it.name)
+                                    }.map {
+                                        MediaFileInfo(
+                                            getFileUrl(viewModel, it),
+                                            it.getFileName()
+                                        )
+                                    }
+                                    val currentIndex =
+                                        mediaFiles.indexOfFirst { it.name == file.getFileName() }
+                                    if (currentIndex >= 0) {
+                                        MediaPreviewActivity.start(
+                                            context,
+                                            mediaFiles,
+                                            currentIndex
+                                        )
+                                    }
+                                } else if (fileType == FileType.AUDIO || fileType == FileType.HTML) {
+                                    // 音频或HTML -> 打开 WebView
                                     val url = getFileUrl(viewModel, file)
                                     com.ohuang.filemanager.WebActivity.start(context, url)
-                                } else if (canEdit&&!file.isWithinTextEditorLimit()) {
+                                } else if (canEdit && !file.isWithinTextEditorLimit()) {
                                     // 可编辑文本 -> 打开编辑弹窗
                                     viewModel.readFileContent(file)
                                 } else {
@@ -293,9 +315,30 @@ fun FileManagerScreen(
                             }
                         },
                         onPreview = { file ->
-                            // 打开 WebView Activity 预览
-                            val url = getFileUrl(viewModel, file)
-                            com.ohuang.filemanager.WebActivity.start(context, url)
+                            if (FileType.isMediaType(file.name)) {
+                                // 图片或视频 -> 打开媒体预览
+                                val mediaFiles = files.filter {
+                                    FileType.isMediaType(it.name)
+                                }.map {
+                                    MediaFileInfo(
+                                        getFileUrl(viewModel, it),
+                                        it.getFileName()
+                                    )
+                                }
+                                val currentIndex =
+                                    mediaFiles.indexOfFirst { it.name == file.getFileName() }
+                                if (currentIndex >= 0) {
+                                    MediaPreviewActivity.start(
+                                        context,
+                                        mediaFiles,
+                                        currentIndex
+                                    )
+                                }
+                            } else {
+                                // 打开 WebView Activity 预览
+                                val url = getFileUrl(viewModel, file)
+                                com.ohuang.filemanager.WebActivity.start(context, url)
+                            }
                         },
                         onEditString = { file ->
                             // 打开文本编辑弹窗

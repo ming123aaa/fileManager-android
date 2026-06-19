@@ -78,6 +78,14 @@
 
         </activity>
 
+        <activity android:name=".MediaPreviewActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified"
+            android:configChanges="screenSize|orientation|keyboardHidden|mcc|mnc|fontScale|density|locale|layoutDirection"
+            android:theme="@style/Theme.FileManager.NoActionBar"
+            >
+        </activity>
+
         <activity android:name=".ui.screens.UploadActivity"
             android:exported="true"
             android:launchMode="singleTop"

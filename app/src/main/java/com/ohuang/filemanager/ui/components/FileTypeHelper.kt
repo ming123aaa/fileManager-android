@@ -63,6 +63,13 @@ enum class FileType(val icon: androidx.compose.ui.graphics.vector.ImageVector, v
             ).contains(getFileType(name))
         }
 
+        fun isMediaType(name: String): Boolean {
+            return listOf(
+                FileType.IMAGE,
+                FileType.VIDEO
+            ).contains(getFileType(name))
+        }
+
         fun isEditStringType(name: String): Boolean {
             return listOf(
                 FileType.TEXT,
