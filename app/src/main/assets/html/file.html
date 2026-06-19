@@ -36,7 +36,21 @@
         <span id="fileCount" class="file-count">加载中...</span>
       </div>
       <div class="toolbar-right">
+        <div id="selectionToolbar" class="selection-toolbar" style="display:none">
+          <span id="selectionCount" style="font-size:13px;color:var(--text-secondary);margin-right:8px"></span>
+          <button class="btn btn-sm btn-outline" onclick="selectAll()">全选</button>
+          <button class="btn btn-sm btn-outline" onclick="deselectAll()">取消选择</button>
+          <button class="btn btn-sm btn-danger" onclick="showDeleteSelectedModal()">
+            <span class="material-icons" style="font-size:14px">delete</span>删除
+          </button>
+          <button class="btn btn-sm btn-primary" onclick="showMoveSelectedModal()">
+            <span class="material-icons" style="font-size:14px">drive_file_move</span>移动
+          </button>
+        </div>
         <div class="filter-group">
+          <button class="filter-btn" data-mode="select" onclick="toggleSelectionMode()" id="selectModeBtn" title="多选模式">
+            <span class="material-icons" style="font-size:18px">checklist</span>
+          </button>
           <button class="filter-btn active" data-mode="all" onclick="changeFilterMode('all')" title="全部">
             <span class="material-icons" style="font-size:18px">select_all</span>
           </button>
@@ -58,6 +72,9 @@
         <div class="view-toggle">
           <button id="viewGrid" class="active" onclick="setView('grid')">
             <span class="material-icons">grid_view</span>
+          </button>
+          <button id="viewPreview" onclick="setView('preview')">
+            <span class="material-icons">auto_awesome</span>
           </button>
           <button id="viewList" onclick="setView('list')">
             <span class="material-icons">list</span>
@@ -228,7 +245,7 @@
       </div>
       <div class="modal-footer">
         <button class="btn btn-outline" onclick="closeModal('moveModal')">取消</button>
-        <button class="btn btn-primary" onclick="confirmMove()">移动</button>
+        <button class="btn btn-primary" onclick="handleMove()">移动</button>
       </div>
     </div>
   </div>
@@ -248,7 +265,7 @@
       </div>
       <div class="modal-footer">
         <button class="btn btn-outline" onclick="closeModal('deleteModal')">取消</button>
-        <button class="btn btn-danger" onclick="deleteItem()">删除</button>
+        <button class="btn btn-danger" onclick="handleDelete()">删除</button>
       </div>
     </div>
   </div>

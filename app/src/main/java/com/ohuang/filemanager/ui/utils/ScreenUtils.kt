@@ -141,7 +141,33 @@ fun rememberGridColumns(deviceType: DeviceType): Int {
             widthDp >= 900 -> 5
             widthDp >= 720 -> 4
             widthDp >= 500 -> 3
-            else -> 2
+            widthDp >= 300 -> 2
+            else -> 1
         }
     }
 }
+
+
+@Composable
+fun rememberPreViewGridColumns(deviceType: DeviceType): Int {
+    val configuration = LocalConfiguration.current
+    val fragmentSize = LocalFragmentBoxSize.current
+    val widthDp = if (fragmentSize.maxWidth >= 100 && fragmentSize.maxWidth <= 5000) {
+        fragmentSize.maxWidth.toInt()
+    } else {
+        configuration.screenWidthDp
+    }
+    return remember(widthDp, deviceType) {
+        when {
+            widthDp >= 1960 -> widthDp/280
+            widthDp >= 1560 -> 6
+            widthDp >= 1200 -> 5
+            widthDp >= 880 -> 4
+            widthDp >= 600 -> 3
+            widthDp >= 360 -> 2
+            else -> 1
+        }
+    }
+}
+
+

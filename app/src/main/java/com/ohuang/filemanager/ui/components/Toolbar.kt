@@ -23,6 +23,7 @@ import com.ohuang.filemanager.ui.utils.rememberDeviceType
 import com.ohuang.filemanager.ui.viewmodel.FilterMode
 import com.ohuang.filemanager.ui.viewmodel.SortBy
 import com.ohuang.filemanager.ui.viewmodel.SortDirection
+import com.ohuang.filemanager.ui.viewmodel.ViewMode
 
 @Composable
 fun Toolbar(
@@ -35,7 +36,9 @@ fun Toolbar(
     onUploadClick: () -> Unit,
     onCreateFolderClick: () -> Unit,
     onGoUpClick: () -> Unit,
-    canGoUp: Boolean
+    canGoUp: Boolean,
+    viewMode: ViewMode = ViewMode.GRID,
+    onViewModeChanged: (ViewMode) -> Unit = {}
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         val mDeviceType= rememberDeviceType()
@@ -73,6 +76,12 @@ fun Toolbar(
             )
 
             Spacer(modifier = Modifier.width(spacerWith))
+
+            // 视图模式切换按钮
+            ViewModeToggle(
+                viewMode = viewMode,
+                onViewModeChanged = onViewModeChanged
+            )
 
             Spacer(modifier = Modifier.weight(1f))
 
@@ -257,6 +266,39 @@ fun SortSelector(
                         Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
                     }
                 }
+            )
+        }
+    }
+}
+
+@Composable
+fun ViewModeToggle(
+    viewMode: ViewMode,
+    onViewModeChanged: (ViewMode) -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // 网格模式按钮
+        IconButton(
+            onClick = { onViewModeChanged(ViewMode.GRID) }
+        ) {
+            Icon(
+                imageVector = Icons.Default.GridView,
+                contentDescription = "网格模式",
+                tint = if (viewMode == ViewMode.GRID) MaterialTheme.colorScheme.primary
+                       else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        // 预览模式按钮
+        IconButton(
+            onClick = { onViewModeChanged(ViewMode.PREVIEW) }
+        ) {
+            Icon(
+                imageVector = Icons.Default.Collections,
+                contentDescription = "预览模式",
+                tint = if (viewMode == ViewMode.PREVIEW) MaterialTheme.colorScheme.primary
+                       else MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }

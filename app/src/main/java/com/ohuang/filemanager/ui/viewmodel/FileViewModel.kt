@@ -27,6 +27,12 @@ data class FolderTreeNode(
     val hasSubfolders: Boolean? = null
 )
 
+// 视图模式枚举
+enum class ViewMode {
+    GRID,    // 网格模式
+    PREVIEW  // 预览模式
+}
+
 class FileViewModel : ViewModel() {
     private val _files = MutableStateFlow<List<FileItem>>(emptyList())
     val files: StateFlow<List<FileItem>> = _files
@@ -48,6 +54,9 @@ class FileViewModel : ViewModel() {
 
     private val _sortDirection = MutableStateFlow(SortDirection.ASC)
     val sortDirection: StateFlow<SortDirection> = _sortDirection
+
+    private val _viewMode = MutableStateFlow(ViewMode.GRID)
+    val viewMode: StateFlow<ViewMode> = _viewMode
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
@@ -235,6 +244,28 @@ class FileViewModel : ViewModel() {
         try { _sortBy.value = SortBy.valueOf(savedSortBy) } catch (_: Exception) {}
         try { _sortDirection.value = SortDirection.valueOf(savedSortDir) } catch (_: Exception) {}
         applyFilters()
+    }
+
+    /**
+     * 切换视图模式
+     */
+    fun toggleViewMode() {
+        _viewMode.value = if (_viewMode.value == ViewMode.GRID) ViewMode.PREVIEW else ViewMode.GRID
+    }
+
+    /**
+     * 设置视图模式
+     */
+    fun setViewMode(mode: ViewMode) {
+        _viewMode.value = mode
+    }
+
+    /**
+     * 从 SharedPreferences 加载视图模式偏好
+     */
+    fun loadViewModeState(context: Context) {
+        val savedViewMode = SPUtil.get(context, "fm_viewMode", "GRID") as String
+        try { _viewMode.value = ViewMode.valueOf(savedViewMode) } catch (_: Exception) {}
     }
 
     fun createFolder(name: String) {

@@ -28,6 +28,10 @@ import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.ohuang.filemanager.data.FileItem
+import com.ohuang.filemanager.ui.utils.rememberDeviceType
+import com.ohuang.filemanager.ui.utils.rememberGridColumns
+import com.ohuang.filemanager.ui.utils.rememberPreViewGridColumns
+import com.ohuang.filemanager.ui.viewmodel.ViewMode
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
@@ -37,9 +41,11 @@ fun FileList(
     selectedFile: FileItem?,
     onFileClick: (FileItem) -> Unit,
     lazyGridState: LazyGridState,
-    gridColumns: Int = 2,
+
     isRefreshing: Boolean = false,
     onRefresh: () -> Unit = {},
+    viewMode: ViewMode = ViewMode.GRID,
+    getFileUrl: (FileItem) -> String = { "" },
     onPreview: (FileItem) -> Unit = {},
     onEditString: (FileItem) -> Unit = {},
     onDownload: (FileItem) -> Unit = {},
@@ -49,6 +55,12 @@ fun FileList(
     onCopyLink: (FileItem) -> Unit = {},
     onOpenInNew: (FileItem) -> Unit = {}
 ) {
+
+    val deviceType = rememberDeviceType()
+    val gridColumnsView =  rememberGridColumns(deviceType)
+    val gridColumnsPreView =  rememberPreViewGridColumns(deviceType)
+
+    var gridColumns=if (viewMode== ViewMode.PREVIEW) gridColumnsPreView else gridColumnsView
 
     // 当前正在显示上下文菜单的文件（仅一个），确保同一时间只有一个菜单打开
     var contextMenuFile by remember { mutableStateOf<FileItem?>(null) }
@@ -84,69 +96,124 @@ fun FileList(
                 EmptyState()
                 return@PullRefresh
             }
+
+            // 根据视图模式选择不同的列数
+            val columns =  gridColumns
+
             LazyVerticalGrid(
-                columns = GridCells.Fixed(gridColumns),
+                columns = GridCells.Fixed(columns),
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(4.dp),
                 state = lazyGridState
             ) {
                 items(files) { file ->
-                    FileCard(
-                        file = file,
-                        onClick = { onFileClick(file) },
-                        onLongClick = {
-                            contextMenuFile = file
-                        },
-                        isSelected = selectedFile?.name == file.name,
-                        // 仅当前卡片显示上下文菜单
-                        showContextMenu = contextMenuFile == file,
-                        onContextMenuDismiss = {
-                            contextMenuFile = null
-                        },
-                        onOpen = { f ->
-                            contextMenuFile = null
-                            if (f.isFolder) onFileClick(f) else onPreview(f)
-                        },
-                        onPreview = { f ->
-                            contextMenuFile = null
-                            onPreview(f)
-                        },
-                        onEditString = { f ->
-                            contextMenuFile = null
-                            onEditString(f)
-                        },
-                        onDownload = { f ->
-                            contextMenuFile = null
-                            onDownload(f)
-                        },
-                        onRename = { f ->
-                            contextMenuFile = null
-                            onRename(f)
-                        },
-                        onMove = { f ->
-                            contextMenuFile = null
-                            onMove(f)
-                        },
-                        onDelete = { f ->
-                            contextMenuFile = null
-                            onDelete(f)
-                        },
-                        onCopyLink = { f ->
-                            contextMenuFile = null
-                            onCopyLink(f)
-                        },
-                        onOpenInNew = { f ->
-                            contextMenuFile = null
-                            onOpenInNew(f)
-                        }
-                    )
+                    if (viewMode == ViewMode.PREVIEW) {
+                        // 预览模式卡片
+                        PreviewCard(
+                            file = file,
+                            fileUrl = getFileUrl(file),
+                            onClick = { onFileClick(file) },
+                            onLongClick = {
+                                contextMenuFile = file
+                            },
+                            isSelected = selectedFile?.name == file.name,
+                            showContextMenu = contextMenuFile == file,
+                            onContextMenuDismiss = {
+                                contextMenuFile = null
+                            },
+                            onOpen = { f ->
+                                contextMenuFile = null
+                                if (f.isFolder) onFileClick(f) else onPreview(f)
+                            },
+                            onPreview = { f ->
+                                contextMenuFile = null
+                                onPreview(f)
+                            },
+                            onEditString = { f ->
+                                contextMenuFile = null
+                                onEditString(f)
+                            },
+                            onDownload = { f ->
+                                contextMenuFile = null
+                                onDownload(f)
+                            },
+                            onRename = { f ->
+                                contextMenuFile = null
+                                onRename(f)
+                            },
+                            onMove = { f ->
+                                contextMenuFile = null
+                                onMove(f)
+                            },
+                            onDelete = { f ->
+                                contextMenuFile = null
+                                onDelete(f)
+                            },
+                            onCopyLink = { f ->
+                                contextMenuFile = null
+                                onCopyLink(f)
+                            },
+                            onOpenInNew = { f ->
+                                contextMenuFile = null
+                                onOpenInNew(f)
+                            }
+                        )
+                    } else {
+                        // 网格模式卡片
+                        FileCard(
+                            file = file,
+                            onClick = { onFileClick(file) },
+                            onLongClick = {
+                                contextMenuFile = file
+                            },
+                            isSelected = selectedFile?.name == file.name,
+                            showContextMenu = contextMenuFile == file,
+                            onContextMenuDismiss = {
+                                contextMenuFile = null
+                            },
+                            onOpen = { f ->
+                                contextMenuFile = null
+                                if (f.isFolder) onFileClick(f) else onPreview(f)
+                            },
+                            onPreview = { f ->
+                                contextMenuFile = null
+                                onPreview(f)
+                            },
+                            onEditString = { f ->
+                                contextMenuFile = null
+                                onEditString(f)
+                            },
+                            onDownload = { f ->
+                                contextMenuFile = null
+                                onDownload(f)
+                            },
+                            onRename = { f ->
+                                contextMenuFile = null
+                                onRename(f)
+                            },
+                            onMove = { f ->
+                                contextMenuFile = null
+                                onMove(f)
+                            },
+                            onDelete = { f ->
+                                contextMenuFile = null
+                                onDelete(f)
+                            },
+                            onCopyLink = { f ->
+                                contextMenuFile = null
+                                onCopyLink(f)
+                            },
+                            onOpenInNew = { f ->
+                                contextMenuFile = null
+                                onOpenInNew(f)
+                            }
+                        )
+                    }
                 }
 
                 item {
                     Column(modifier = Modifier.height(80.dp)) { }
-
                 }
-
             }
 
 

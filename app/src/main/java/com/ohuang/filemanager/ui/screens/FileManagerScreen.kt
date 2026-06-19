@@ -33,7 +33,9 @@ import com.ohuang.filemanager.data.FileItem
 import com.ohuang.filemanager.ui.components.*
 import com.ohuang.filemanager.ui.utils.rememberDeviceType
 import com.ohuang.filemanager.ui.utils.rememberGridColumns
+import com.ohuang.filemanager.ui.utils.rememberPreViewGridColumns
 import com.ohuang.filemanager.ui.viewmodel.FileViewModel
+import com.ohuang.filemanager.ui.viewmodel.ViewMode
 import com.ohuang.filemanager.util.SPUtil
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -46,11 +48,13 @@ fun FileManagerScreen(
     val viewModel: FileViewModel = viewModel()
     val context = LocalContext.current
     val deviceType = rememberDeviceType()
-    val gridColumns = rememberGridColumns(deviceType)
+
+
 
     LaunchedEffect(Unit) {
         HttpConfig.loadBaseUrl(context)
         viewModel.loadSortState(context)
+        viewModel.loadViewModeState(context)
     }
 
     val files by viewModel.files.collectAsState()
@@ -59,6 +63,7 @@ fun FileManagerScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
     val showToast by viewModel.showToast.collectAsState()
+    val viewMode by viewModel.viewMode.collectAsState()
 
     // 上传结果处理：上传成功后刷新文件列表
     val uploadLauncher = rememberLauncherForActivityResult(
@@ -190,7 +195,12 @@ fun FileManagerScreen(
                     },
                     onCreateFolderClick = { viewModel.showMkdirDialog() },
                     onGoUpClick = { viewModel.goUp() },
-                    canGoUp = currentPath.isNotEmpty()
+                    canGoUp = currentPath.isNotEmpty(),
+                    viewMode = viewMode,
+                    onViewModeChanged = { newMode ->
+                        viewModel.setViewMode(newMode)
+                        SPUtil.put(context, "fm_viewMode", newMode.name)
+                    }
                 )
 
                 Divider()
@@ -217,9 +227,11 @@ fun FileManagerScreen(
                     FileList(
                         files = files,
                         selectedFile = selectedFile,
-                        gridColumns = gridColumns,
+
                         isRefreshing = isRefreshing,
                         lazyGridState = lazyGridState,
+                        viewMode = viewMode,
+                        getFileUrl = { file -> getFileUrl(viewModel, file) },
                         onRefresh = {
                             rememberCoroutineScope.launch {
                                 if (!isRefreshing) {
