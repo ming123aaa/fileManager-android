@@ -41,6 +41,7 @@ import androidx.compose.material3.SmallTopAppBar
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -151,28 +152,22 @@ class DataMigrationActivity : ComponentActivity() {
                             Toast.LENGTH_SHORT
                         ).show()
                     }
-
             )
 
-
-            Text(
-                "文件夹:${targetFilePath}", maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable{
-                        ClipboardUtils.copyText(
-                            targetFilePath,
-                            this@DataMigrationActivity
-                        )
-                        Toast.makeText(
-                            this@DataMigrationActivity, "已复制",
-                            Toast.LENGTH_SHORT
-                        ).show()
+            TextField(
+                value = targetFilePath,
+                onValueChange = { targetFilePath = it },
+                label = { Text("目标文件夹") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                trailingIcon = {
+                    IconButton(onClick = {
+                        ClipboardUtils.copyText(targetFilePath, this@DataMigrationActivity)
+                        Toast.makeText(this@DataMigrationActivity, "已复制", Toast.LENGTH_SHORT).show()
+                    }) {
+                        Icon(imageVector = Icons.Default.Output, contentDescription = "复制")
                     }
-                  ,
-                color = MaterialTheme.colorScheme.error
-
+                }
             )
 
             val directoryLauncher = rememberLauncherForActivityResult(

@@ -178,9 +178,11 @@ class ServiceLauncherActivity : ComponentActivity() {
         onFilePathChange: (String) -> Unit
     ) {
         Column(modifier = Modifier.padding(horizontal = 15.dp)) {
-            Text(
-                "当前文件目录:$fileDirPath", maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
+            TextField(
+                value = fileDirPath,
+                onValueChange = onFilePathChange,
+                label = { Text("当前文件目录") },
+                singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
 
