@@ -1,9 +1,11 @@
 package com.ohuang.filemanager
 
+import android.R.attr.repeatMode
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.view.WindowManager
 import android.widget.Toast
@@ -92,6 +94,7 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.net.URLDecoder
 import kotlin.math.PI
 import kotlin.math.abs
 
@@ -136,11 +139,12 @@ class MediaPreviewActivity : ComponentActivity() {
 
             MaterialTheme(colorScheme = darkColorScheme()) {
 
-                Box(modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black)
-                    .safeDrawingPadding()
-                    ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black)
+                        .safeDrawingPadding()
+                ) {
                     MediaPreviewScreen(
                         mediaList = mediaList,
                         initialIndex = currentIndex,
@@ -175,7 +179,7 @@ class MediaPreviewActivity : ComponentActivity() {
     }
 }
 
-private var autoNext=false
+private var autoNext = false
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -205,29 +209,33 @@ fun MediaPreviewScreen(
         VerticalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
+            beyondBoundsPageCount = 1,
             userScrollEnabled = pagerScrollEnabled
         ) { page ->
             val mediaFile = mediaList[page % mediaList.size]
             val isVideo = isVideoFile(mediaFile.name)
             val isCurrentPage = page == currentPage
+            val isPrePage = abs(page - currentPage) <= 1
+            val isActivity=isCurrentPage&& abs(pagerState.currentPageOffsetFraction) <0.25
+
 
             Box(modifier = Modifier.fillMaxSize()) {
                 if (isVideo) {
                     VideoPlayerPage(
                         url = mediaFile.url,
                         infoMap = videoInfoMap,
-                        isActive = isCurrentPage,
+                        isActive = isActivity,
                         onControllerVisibilityChanged = { visible ->
                             uiVisible = visible
                         },
                         onSeekStart = { pagerScrollEnabled = false },
                         onSeekEnd = { pagerScrollEnabled = true },
                         isAutoNext = isAutoNext,
+                        isPre = isPrePage,
                         onNext = {
                             rememberCoroutineScope.launch {
-                                pagerState.scrollToPage(currentPage + 1)
+                                pagerState.animateScrollToPage(currentPage + 1)
                             }
-
                         }
                     )
                 } else {
@@ -246,7 +254,7 @@ fun MediaPreviewScreen(
                         }, isAutoNext = isAutoNext,
                         onNext = {
                             rememberCoroutineScope.launch {
-                                pagerState.scrollToPage(currentPage + 1)
+                                pagerState.animateScrollToPage(currentPage + 1)
                             }
 
                         }
@@ -287,7 +295,7 @@ fun MediaPreviewScreen(
                         if (mediaList.size > 10) {
                             IconButton(onClick = {
                                 isAutoNext = !isAutoNext
-                                autoNext=isAutoNext
+                                autoNext = isAutoNext
                                 Toast.makeText(
                                     context, if (isAutoNext) "自动翻页" else "循环播放",
                                     Toast.LENGTH_SHORT
@@ -364,6 +372,7 @@ fun ZoomableImage(
         }
 
     }
+
 
     LaunchedEffect(scale) {
         onScaleChanged(scale)
@@ -485,12 +494,17 @@ fun VideoPlayerPage(
     url: String,
     infoMap: SnapshotStateMap<String, Long>,
     isActive: Boolean,
+    isPre: Boolean,
     isAutoNext: Boolean,
     onNext: () -> Unit,
     onControllerVisibilityChanged: (Boolean) -> Unit,
     onSeekStart: () -> Unit,
     onSeekEnd: () -> Unit
 ) {
+
+    if (!isPre) {
+        return
+    }
     val context = LocalContext.current
     var isPlayingVideo by remember { mutableStateOf(false) }
     var showPlayController by remember { mutableStateOf(false) }
@@ -502,12 +516,13 @@ fun VideoPlayerPage(
     var seekDelta by remember { mutableLongStateOf(0L) }
 
     // 播放进度
-    var currentPosition by remember(url) { mutableLongStateOf(0L) }
+    var currentPosition by remember { mutableLongStateOf(0L) }
     var duration by remember { mutableLongStateOf(0L) }
 
     // 触摸检测状态
     var touchStartX by remember { mutableFloatStateOf(0f) }
     var isDragging by remember { mutableStateOf(false) }
+    val rememberCoroutineScope = rememberCoroutineScope()
 
     // 创建播放器
     val player = remember {
@@ -515,8 +530,8 @@ fun VideoPlayerPage(
             setSeekBackIncrementMs(15_000)
             setSeekForwardIncrementMs(30_000)
 
-
         }.build().apply {
+
 
             addListener(object : Player.Listener {
 
@@ -526,8 +541,10 @@ fun VideoPlayerPage(
                         Player.STATE_ENDED -> {
                             if (autoNextState) {
                                 onNext()
-                                currentPosition = 0
                             }
+                            this@apply.seekTo(0)
+                            infoMap[url] = 0
+
                         }
 
                         Player.STATE_BUFFERING -> {
@@ -550,6 +567,7 @@ fun VideoPlayerPage(
                     isPlayingVideo = isPlaying
                 }
             })
+
         }
     }
 
@@ -564,15 +582,27 @@ fun VideoPlayerPage(
 
 
 
-
-    LaunchedEffect(isActive, url) {
-        if (isActive) {
-
+    LaunchedEffect(Unit) {
+        if (player.mediaItemCount==0) {
+            delay(300)
             player.setMediaItem(MediaItem.fromUri(url))
             player.prepare()
             player.seekTo(infoMap[url] ?: 0)
+            if (isActive) {
+                player.playWhenReady
+            }
+        }
+    }
+
+
+    LaunchedEffect(isActive) {
+        if (isActive) {
+            delay(100)
             player.playWhenReady = true
+
         } else {
+//            infoMap[url] = player.currentPosition
+            player.playWhenReady = false
             player.pause()
         }
     }
@@ -582,9 +612,8 @@ fun VideoPlayerPage(
         if (isActive) {
             while (true) {
                 currentPosition = player.currentPosition
-                infoMap[url] = player.currentPosition
                 duration = player.duration
-                kotlinx.coroutines.delay(300)
+                delay(300)
             }
         }
     }
@@ -607,6 +636,7 @@ fun VideoPlayerPage(
                     controllerAutoShow = false
                     setBackgroundColor(android.graphics.Color.BLACK)
                     controllerHideOnTouch = true
+                    keepScreenOn = true
 
                     controllerShowTimeoutMs = 2000
 
@@ -622,7 +652,10 @@ fun VideoPlayerPage(
                     setShowNextButton(false)
                     setShowPreviousButton(false)
 
-
+                    Log.d(
+                        "Effect",
+                        "PlayerView isActive=" + isActive + " url=" + URLDecoder.decode(url)
+                    )
                 }
             },
             modifier = Modifier
@@ -686,7 +719,7 @@ fun VideoPlayerPage(
                     if (seekDelta < 0) {
                         Icon(
                             imageVector = Icons.Default.FastRewind,
-                            contentDescription = "快退",
+                            contentDescription = "后退",
                             tint = Color.White,
                             modifier = Modifier.size(48.dp)
                         )

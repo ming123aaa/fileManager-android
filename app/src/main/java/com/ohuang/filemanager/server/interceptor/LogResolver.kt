@@ -20,7 +20,7 @@ class LogResolver:  ExceptionResolver {
     ) {
 
         Log.d("LogResolver",""+request.path+"e="+e.message)
-        Log.d("LogResolver",e.stackTraceToString())
+//        Log.d("LogResolver",e.stackTraceToString())
 
 
     }
