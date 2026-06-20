@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.os.Bundle
 import android.util.Log
+import android.view.LayoutInflater
 import android.view.View
 import android.view.WindowManager
 import android.widget.Toast
@@ -17,6 +18,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateCentroid
@@ -26,6 +29,8 @@ import androidx.compose.foundation.gestures.calculateRotation
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -35,12 +40,18 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.pager.PagerDefaults
+import androidx.compose.foundation.pager.PagerSnapDistance
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -57,11 +68,13 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
@@ -69,17 +82,25 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastAny
 import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.zIndex
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.common.MediaItem
@@ -92,6 +113,14 @@ import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import com.ohuang.filemanager.server.util.AppContext
+import com.ohuang.filemanager.ui.components.VideoThumbnail
+import com.ohuang.filemanager.ui.utils.DeviceType
+import com.ohuang.filemanager.ui.utils.rememberDeviceType
+import com.ohuang.filemanager.util.ClipboardUtils
+import com.ohuang.filemanager.util.ExoPlayerPoolManager
+import com.ohuang.filemanager.util.SPUtil
+import com.ohuang.filemanager.util.dp2px
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.net.URLDecoder
@@ -107,6 +136,11 @@ data class MediaFileInfo(
 )
 
 class MediaPreviewActivity : ComponentActivity() {
+
+    val videoInfoMap = SnapshotStateMap<String, Long>()
+
+    val playerManager = ExoPlayerPoolManager(this)
+
 
     companion object {
         const val EXTRA_MEDIA_LIST = "extra_media_list"
@@ -149,12 +183,19 @@ class MediaPreviewActivity : ComponentActivity() {
                         mediaList = mediaList,
                         initialIndex = currentIndex,
                         onClose = { finish() },
+                        videoInfoMap = videoInfoMap,
+                        playerManager = playerManager,
                         onToggleOrientation = { toggleOrientation() }
                     )
                 }
 
             }
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        playerManager.releaseAll()
     }
 
     private fun toggleFullscreen() {
@@ -171,58 +212,94 @@ class MediaPreviewActivity : ComponentActivity() {
 
     private fun toggleOrientation() {
         requestedOrientation =
-            if (requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE) {
-                ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+            if (requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE) {
+                ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
             } else {
-                ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE
             }
     }
 }
-
-private var autoNext = false
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun MediaPreviewScreen(
     mediaList: List<MediaFileInfo>,
     initialIndex: Int,
+    videoInfoMap: SnapshotStateMap<String, Long>,
+    playerManager: ExoPlayerPoolManager,
     onClose: () -> Unit,
     onToggleOrientation: () -> Unit
 ) {
     if (mediaList.isEmpty()) {
         return
     }
-    val videoInfoMap = remember { SnapshotStateMap<String, Long>() }
+
     val context = LocalContext.current
-    var isAutoNext by remember { mutableStateOf(autoNext) }
+    val isAutoNextDefault = SPUtil.get(context, "media_preview_auto_next", false) as Boolean
+    val isLockScrollDefault = SPUtil.get(context, "media_preview_lock_scroll", false) as Boolean
+    var isAutoNext by rememberSaveable { mutableStateOf(isAutoNextDefault) }
+    var isLockScroll by rememberSaveable { mutableStateOf(isLockScrollDefault) }
     val pagerState = rememberPagerState(initialPage = initialIndex) { 100000 }
     val currentPage by remember { derivedStateOf { pagerState.currentPage } }
-    var uiVisible by remember { mutableStateOf(true) }
-    var pagerScrollEnabled by remember { mutableStateOf(true) }
+    val currentPageOffsetFraction by remember { derivedStateOf { pagerState.currentPageOffsetFraction } }
+    var selectPage by rememberSaveable { mutableStateOf(currentPage) }
+    LaunchedEffect(currentPage, currentPageOffsetFraction) {
+        if (currentPageOffsetFraction == 0f) {
+            delay(100)
+            selectPage = currentPage
+        }
+    }
+    var uiVisible by rememberSaveable { mutableStateOf(true) }
+
+    var pagerScrollEnabled by rememberSaveable { mutableStateOf(true) }
     val rememberCoroutineScope = rememberCoroutineScope()
+
+
 
     Box(
         modifier = Modifier
             .fillMaxSize()
 
     ) {
+
+        val fling = PagerDefaults.flingBehavior(
+            state = pagerState,
+            pagerSnapDistance = PagerSnapDistance.atMost(1), // 设置滑动贴靠距离
+
+        )
+
+
+
         VerticalPager(
             state = pagerState,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                ,
             beyondBoundsPageCount = 1,
-            userScrollEnabled = pagerScrollEnabled
+            flingBehavior = fling,
+            key = { it },
+            userScrollEnabled = pagerScrollEnabled&&!isLockScroll
         ) { page ->
+
             val mediaFile = mediaList[page % mediaList.size]
             val isVideo = isVideoFile(mediaFile.name)
-            val isCurrentPage = page == currentPage
-            val isPrePage = abs(page - currentPage) <= 1
-            val isActivity=isCurrentPage&& abs(pagerState.currentPageOffsetFraction) <0.25
+            val isCurrentPage = page == selectPage
+            val isPrePage = abs(page - selectPage) <= 1
+            val isActivity =
+                isCurrentPage && currentPage == page && abs(pagerState.currentPageOffsetFraction) < 0.25
 
 
-            Box(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+
+            ) {
                 if (isVideo) {
+
                     VideoPlayerPage(
+                        playerManager = playerManager,
                         url = mediaFile.url,
+                        name = mediaFile.name,
                         infoMap = videoInfoMap,
                         isActive = isActivity,
                         onControllerVisibilityChanged = { visible ->
@@ -276,9 +353,14 @@ fun MediaPreviewScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = mediaList.getOrNull(currentPage)?.name ?: "",
+                        text = mediaFile.name ?: "",
                         color = Color.White,
-                        maxLines = 1
+                        maxLines = 1,
+                        overflow= TextOverflow.Ellipsis
+                        , modifier = Modifier.clickable{
+                            ClipboardUtils.copyText(mediaFile.name,context)
+                            Toast.makeText(context,"已复制",Toast.LENGTH_SHORT).show()
+                        }
                     )
                 },
                 navigationIcon = {
@@ -292,10 +374,10 @@ fun MediaPreviewScreen(
                 },
                 actions = {
                     Row {
-                        if (mediaList.size > 10) {
+
                             IconButton(onClick = {
                                 isAutoNext = !isAutoNext
-                                autoNext = isAutoNext
+                                SPUtil.put(context, "media_preview_auto_next", isAutoNext)
                                 Toast.makeText(
                                     context, if (isAutoNext) "自动翻页" else "循环播放",
                                     Toast.LENGTH_SHORT
@@ -308,6 +390,16 @@ fun MediaPreviewScreen(
                                     tint = Color.White
                                 )
                             }
+
+                        IconButton(onClick = {
+                            isLockScroll = !isLockScroll
+                            SPUtil.put(context, "media_preview_lock_scroll", isLockScroll)
+                        }) {
+                            Icon(
+                                imageVector = if (isLockScroll) Icons.Default.Lock  else Icons.Default.LockOpen,
+                                contentDescription = "锁定",
+                                tint = Color.White
+                            )
                         }
                         IconButton(onClick = onToggleOrientation) {
                             Icon(
@@ -343,7 +435,7 @@ fun MediaPreviewScreen(
             ) {
 
                 Text(
-                    text = "${currentPage + 1} / ${mediaList.size}",
+                    text = "${currentPage % mediaList.size + 1} / ${mediaList.size}",
                     color = Color.White
                 )
 
@@ -491,7 +583,9 @@ suspend fun PointerInputScope.awaitTransformGestures(
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 fun VideoPlayerPage(
+    playerManager: ExoPlayerPoolManager,
     url: String,
+    name: String,
     infoMap: SnapshotStateMap<String, Long>,
     isActive: Boolean,
     isPre: Boolean,
@@ -502,7 +596,28 @@ fun VideoPlayerPage(
     onSeekEnd: () -> Unit
 ) {
 
+    var isReady by remember { mutableStateOf(false) }
+
+    AnimatedVisibility(
+        visible = !isReady || !isPre,
+        enter = fadeIn(),
+        exit = fadeOut(),
+        modifier = Modifier.zIndex(1f)
+    ) {
+
+        Box(modifier = Modifier.fillMaxSize()) {
+            VideoThumbnail(
+                modifier = Modifier.fillMaxSize(),
+                videoUrl = url,
+                contentScale = ContentScale.Fit
+            )
+        }
+
+    }
+
+
     if (!isPre) {
+
         return
     }
     val context = LocalContext.current
@@ -526,14 +641,10 @@ fun VideoPlayerPage(
 
     // 创建播放器
     val player = remember {
-        ExoPlayer.Builder(context).apply {
-            setSeekBackIncrementMs(15_000)
-            setSeekForwardIncrementMs(30_000)
-
-        }.build().apply {
+        playerManager.acquirePlayer().apply {
 
 
-            addListener(object : Player.Listener {
+            setListener(object : Player.Listener {
 
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     super.onPlaybackStateChanged(playbackState)
@@ -542,7 +653,7 @@ fun VideoPlayerPage(
                             if (autoNextState) {
                                 onNext()
                             }
-                            this@apply.seekTo(0)
+                            this@apply.player.seekTo(0)
                             infoMap[url] = 0
 
                         }
@@ -556,7 +667,7 @@ fun VideoPlayerPage(
                         }
 
                         Player.STATE_READY -> {
-
+                            isReady = true
                         }
                     }
                 }
@@ -574,36 +685,38 @@ fun VideoPlayerPage(
     LaunchedEffect(isAutoNext) {
         autoNextState = isAutoNext
         if (isAutoNext) {
-            player.repeatMode = REPEAT_MODE_OFF
+            player.player.repeatMode = REPEAT_MODE_OFF
         } else {
-            player.repeatMode = REPEAT_MODE_ALL
+            player.player.repeatMode = REPEAT_MODE_ALL
         }
     }
 
 
 
     LaunchedEffect(Unit) {
-        if (player.mediaItemCount==0) {
-            delay(300)
-            player.setMediaItem(MediaItem.fromUri(url))
-            player.prepare()
-            player.seekTo(infoMap[url] ?: 0)
-            if (isActive) {
-                player.playWhenReady
-            }
+        Log.d(
+            "VideoPlayerPage",
+            "prepare ->isActive=${isActive} name=$name itemSize=${player.player.mediaItemCount}"
+        )
+        if (player.player.mediaItemCount == 0) {
+            player.player.setMediaItem(MediaItem.fromUri(url))
+            player.player.prepare()
+            player.player.seekTo(infoMap[url] ?: 0)
+            player.player.playWhenReady = true
+            Log.d("VideoPlayerPage", "setMediaItem-> name=$name")
         }
     }
 
 
     LaunchedEffect(isActive) {
+        Log.d("VideoPlayerPage", "LaunchedEffect->isActive=${isActive} name=$name")
         if (isActive) {
-            delay(100)
-            player.playWhenReady = true
+            player.player.playWhenReady = true
 
         } else {
-//            infoMap[url] = player.currentPosition
-            player.playWhenReady = false
-            player.pause()
+            player.player.pause()
+            infoMap[url] = player.player.currentPosition
+
         }
     }
 
@@ -611,8 +724,8 @@ fun VideoPlayerPage(
     LaunchedEffect(isActive) {
         if (isActive) {
             while (true) {
-                currentPosition = player.currentPosition
-                duration = player.duration
+                currentPosition = player.player.currentPosition
+                duration = player.player.duration
                 delay(300)
             }
         }
@@ -620,9 +733,17 @@ fun VideoPlayerPage(
 
     DisposableEffect(Unit) {
         onDispose {
-            player.release()
+            Log.d("VideoPlayerPage", "onDispose-> name=$name")
+            try {
+                infoMap[url] = player.player.currentPosition
+                playerManager.releasePlayer(player)
+            } catch (e: Throwable) {
+                e.printStackTrace()
+            }
         }
     }
+
+    val rememberDeviceType = rememberDeviceType()
 
     Box(
         modifier = Modifier
@@ -630,8 +751,12 @@ fun VideoPlayerPage(
     ) {
         AndroidView(
             factory = { ctx ->
-                PlayerView(ctx).apply {
-                    this.player = player
+
+                val playView =
+                    LayoutInflater.from(ctx).inflate(R.layout.oh_exo_player, null) as PlayerView
+                playView.apply {
+                    Log.d("VideoPlayerPage", "PlayerView -> name=$name")
+                    this.player = player.player
                     useController = true
                     controllerAutoShow = false
                     setBackgroundColor(android.graphics.Color.BLACK)
@@ -646,11 +771,12 @@ fun VideoPlayerPage(
                         onControllerVisibilityChanged(visibility == View.VISIBLE)
                         showPlayController = visibility == View.VISIBLE
                     })
-
-
-
                     setShowNextButton(false)
                     setShowPreviousButton(false)
+
+
+
+
 
                     Log.d(
                         "Effect",
@@ -671,7 +797,7 @@ fun VideoPlayerPage(
                             onDragEnd = {
                                 if (isDragging && kotlin.math.abs(seekDelta) > 500) {
                                     val newPosition = (currentPosition + seekDelta).coerceAtLeast(0)
-                                    player.seekTo(newPosition)
+                                    player.player.seekTo(newPosition)
                                 }
                                 isDragging = false
                                 showSeekIndicator = false

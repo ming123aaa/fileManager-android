@@ -31,10 +31,13 @@ object VideoThumbnailCache {
 
     private const val DISK_CACHE_DIR = "video_thumbnails"
     private const val MAX_DISK_CACHE_SIZE = 1000 * 1024 * 1024 // 1000MB
+    private const val TIMEOUT_MS = 7 * 24 * 3600 * 1000 // 七天后过期
 
     private val diskCacheDir: File by lazy {
         File(AppContext.instance.cacheDir, DISK_CACHE_DIR)
     }
+
+
 
 
     private val cache =
@@ -60,7 +63,7 @@ object VideoThumbnailCache {
         val file = getCacheFile(url)
 
         return if (file.exists()) {
-            if (System.currentTimeMillis() - file.lastModified() > 7 * 24 * 3600*1000) {
+            if (System.currentTimeMillis() - file.lastModified() > TIMEOUT_MS) {
                 file.delete()
                 null
             } else {
@@ -74,8 +77,11 @@ object VideoThumbnailCache {
     private fun saveToDiskCache(url: String, bitmap: Bitmap) {
         val file = getCacheFile(url)
         try {
+            if (!file.parentFile.exists()) {
+                file.parentFile.mkdirs()
+            }
             FileOutputStream(file).use { out ->
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+                bitmap.compress(Bitmap.CompressFormat.WEBP, 100, out)
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -84,7 +90,7 @@ object VideoThumbnailCache {
 
     private fun getCacheFile(url: String): File {
         val hashedName = md5(url)
-        return File(diskCacheDir, hashedName)
+        return File(diskCacheDir, "$hashedName.webp")
     }
 
     private fun md5(input: String): String {
@@ -104,6 +110,8 @@ object VideoThumbnailCache {
 
     }
 
+
+
     fun clear() {
         cache.clear()
         diskCacheDir?.listFiles()?.forEach { it.delete() }
@@ -115,7 +123,7 @@ fun VideoThumbnail(
     videoUrl: String,
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.Crop,
-    thumbnailSize: Dp = 150.dp,
+    thumbnailSize: Dp = 200.dp,
     placeholder: @Composable () -> Unit = { DefaultPlaceholder() }
 ) {
     val density = LocalDensity.current
@@ -152,9 +160,9 @@ fun VideoThumbnail(
         job = scope.launch(Dispatchers.IO) {
             // 检查磁盘缓存
             delay(100)
-            val diskCachedBitmap = withContext(Dispatchers.IO) {
+            val diskCachedBitmap =
                 VideoThumbnailCache.getFromDiskCache(videoUrl)
-            }
+
             if (diskCachedBitmap != null) {
                 VideoThumbnailCache.putCache(url = videoUrl, diskCachedBitmap)
                 bitmapState.value = diskCachedBitmap
