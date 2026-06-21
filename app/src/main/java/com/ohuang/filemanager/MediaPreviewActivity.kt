@@ -245,7 +245,7 @@ fun MediaPreviewScreen(
     var selectPage by rememberSaveable { mutableStateOf(currentPage) }
     LaunchedEffect(currentPage, currentPageOffsetFraction) {
         if (currentPageOffsetFraction == 0f) {
-            delay(100)
+            delay(200)//需要停留一段时间 才认为是选中状态
             selectPage = currentPage
         }
     }
@@ -317,6 +317,7 @@ fun MediaPreviewScreen(
                     )
                 } else {
                     ZoomableImage(
+                        isActive = isActivity,
                         url = mediaFile.url,
                         onTap = {
                             if (pagerScrollEnabled) {
@@ -446,6 +447,7 @@ fun MediaPreviewScreen(
 
 @Composable
 fun ZoomableImage(
+    isActive : Boolean,
     url: String,
     onTap: () -> Unit,
     onScaleChanged: (Float) -> Unit,
@@ -457,8 +459,8 @@ fun ZoomableImage(
     var offset by remember { mutableStateOf(Offset.Zero) }
     var size by remember { mutableStateOf(IntSize.Zero) }
 
-    LaunchedEffect(url, isAutoNext) {
-        if (isAutoNext) {
+    LaunchedEffect(url, isAutoNext,isActive) {
+        if (isAutoNext&&isActive) {
             delay(15_000)
             onNext()
         }
