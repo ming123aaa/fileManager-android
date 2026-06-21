@@ -103,7 +103,15 @@ class DownloadHandler(var basePath: String) : MappingHandler("", Mapping(), Addi
 
     override fun getLastModified(request: HttpRequest): Long {
         Log.d("DownloadAdapter", "request ${request.path}")
-        return -1
+        val path = request.path
+        val filePath = getFilePath(path)
+        if (filePath != path) {
+            val file = safePath(basePath, filePath)
+            if (file.exists()){
+                return file.lastModified()
+            }
+        }
+        return System.currentTimeMillis()
     }
 }
 

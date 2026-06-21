@@ -1,41 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 主题色 - 科技蓝 -->
-    <color name="primary">#FF3B82F6</color>
-    <color name="primary_dark">#FF2563EB</color>
-    <color name="primary_light">#FF60A5FA</color>
+    <!-- 主题色 - 海洋蓝 -->
+    <color name="primary">#FF1E88E5</color>
+    <color name="primary_dark">#FF1565C0</color>
+    <color name="primary_light">#FF64B5F6</color>
     <color name="on_primary">#FFFFFFFF</color>
 
-    <!-- 强调色 - 活力橙 -->
-    <color name="accent">#FFF59E0B</color>
-    <color name="accent_dark">#FFD97706</color>
-    <color name="on_accent">#FF000000</color>
+    <!-- 强调色 - 青蓝色 (与主色协调) -->
+    <color name="accent">#FF00BCD4</color>
+    <color name="accent_dark">#FF0097A7</color>
+    <color name="on_accent">#FFFFFFFF</color>
 
     <!-- 背景色 -->
-    <color name="background">#FFF8FAFC</color>
+    <color name="background">#FFFAFAFA</color>
     <color name="surface">#FFFFFFFF</color>
-    <color name="surface_variant">#FFF1F5F9</color>
+    <color name="surface_variant">#FFE8E8E8</color>
 
     <!-- 文字色 -->
-    <color name="text_primary">#FF1E293B</color>
-    <color name="text_secondary">#FF64748B</color>
-    <color name="text_hint">#FF94A3B8</color>
+    <color name="text_primary">#FF0D1B2A</color>
+    <color name="text_secondary">#FF546E7A</color>
+    <color name="text_hint">#FF90A4AE</color>
 
     <!-- 状态色 -->
-    <color name="success">#FF22C55E</color>
-    <color name="warning">#FFF59E0B</color>
-    <color name="error">#FFEF4444</color>
-    <color name="info">#FF3B82F6</color>
+    <color name="success">#FF2E7D32</color>
+    <color name="warning">#FFF9A825</color>
+    <color name="error">#FFC62828</color>
+    <color name="info">#FF0288D1</color>
 
     <!-- 分割线 -->
-    <color name="divider">#FFE2E8F0</color>
+    <color name="divider">#FFBBDEFB</color>
 
     <!-- 旧颜色兼容 -->
-    <color name="purple_200">#FFBB86FC</color>
-    <color name="purple_500">#FF6200EE</color>
-    <color name="purple_700">#FF3700B3</color>
-    <color name="teal_200">#FF03DAC5</color>
-    <color name="teal_700">#FF018786</color>
+    <color name="purple_200">#FF90CAF9</color>
+    <color name="purple_500">#FF1E88E5</color>
+    <color name="purple_700">#FF1565C0</color>
+    <color name="teal_200">#FF4DD0E1</color>
+    <color name="teal_700">#FF00838F</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 </resources>

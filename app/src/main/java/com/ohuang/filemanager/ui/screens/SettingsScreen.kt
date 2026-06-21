@@ -20,7 +20,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Dry
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.Save
@@ -49,6 +51,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
@@ -61,6 +64,7 @@ import com.ohuang.filemanager.data.ApiService
 import com.ohuang.filemanager.getDefaultServiceFilePath
 import com.ohuang.filemanager.getPrivateServiceFilePath
 import com.ohuang.filemanager.getServicePort
+import com.ohuang.filemanager.service.UploadService
 import com.ohuang.filemanager.util.ClipboardUtils
 import com.ohuang.filemanager.util.BatteryOptimizationHelper
 import com.ohuang.kthttp.call.awaitOrNull
@@ -263,7 +267,26 @@ private fun LocalService(context: Context) {
                         Toast.LENGTH_SHORT
                     ).show()
                 })
+            , color = Color.Red
         )
+
+        Spacer(modifier = Modifier.height(15.dp))
+
+        Button(
+            onClick = {
+                val intent = Intent(context, ServiceLauncherActivity::class.java)
+                context.startActivity(intent)
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(
+                imageVector = Icons.Default.Settings,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("本地服务端设置")
+        }
 
         Spacer(modifier = Modifier.height(15.dp))
         Button(
@@ -287,22 +310,24 @@ private fun LocalService(context: Context) {
         }
 
         Spacer(modifier = Modifier.height(15.dp))
-
         Button(
             onClick = {
-                val intent = Intent(context, ServiceLauncherActivity::class.java)
-                context.startActivity(intent)
+                context.startActivity(Intent(context, PowerSavingActivity::class.java))
+
+
             },
             modifier = Modifier.fillMaxWidth()
         ) {
             Icon(
-                imageVector = Icons.Default.Settings,
+                imageVector = Icons.Default.DarkMode,
                 contentDescription = null,
                 modifier = Modifier.size(20.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Text("本地服务端配置")
+            Text("黑屏省电")
         }
+
+
 
 
     }
@@ -486,7 +511,13 @@ private fun CacheCleanerCard(context: Context) {
             Spacer(modifier = Modifier.height(12.dp))
 
             Button(
-                onClick = { showConfirmDialog = true },
+                onClick = {
+                    if (UploadService.isUploading.value) {
+                        Toast.makeText(context, "文件上传中,请稍后再清理", Toast.LENGTH_SHORT)
+                            .show()
+                        return@Button
+                    }
+                    showConfirmDialog = true },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = cacheSize != "计算中..." && cacheSize != "0 B"
             ) {
@@ -517,6 +548,10 @@ private fun CacheCleanerCard(context: Context) {
             confirmButton = {
                 TextButton(
                     onClick = {
+                        if (UploadService.isUploading.value){
+                            Toast.makeText(context,"文件上传中,请稍后再清理", Toast.LENGTH_SHORT).show()
+                            return@TextButton
+                        }
                         showConfirmDialog = false
                         clearCache(context) {
                             cacheSize = calculateCacheSize(context)

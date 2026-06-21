@@ -289,30 +289,36 @@ fun ViewModeToggle(
     viewMode: ViewMode,
     onViewModeChanged: (ViewMode) -> Unit
 ) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = Modifier.padding(horizontal = 4.dp)
     ) {
-        // 网格模式按钮
-        IconButton(
-            onClick = { onViewModeChanged(ViewMode.GRID) }
+        Row(
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.Default.GridView,
-                contentDescription = "网格模式",
-                tint = if (viewMode == ViewMode.GRID) MaterialTheme.colorScheme.primary
-                       else MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        // 预览模式按钮
-        IconButton(
-            onClick = { onViewModeChanged(ViewMode.PREVIEW) }
-        ) {
-            Icon(
-                imageVector = Icons.Default.Collections,
-                contentDescription = "预览模式",
-                tint = if (viewMode == ViewMode.PREVIEW) MaterialTheme.colorScheme.primary
-                       else MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            // 网格模式按钮
+            IconButton(
+                onClick = { onViewModeChanged(ViewMode.GRID) }
+            ) {
+                Icon(
+                    imageVector = Icons.Default.GridView,
+                    contentDescription = "网格模式",
+                    tint = if (viewMode == ViewMode.GRID) MaterialTheme.colorScheme.primary
+                           else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            // 预览模式按钮
+            IconButton(
+                onClick = { onViewModeChanged(ViewMode.PREVIEW) }
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Collections,
+                    contentDescription = "预览模式",
+                    tint = if (viewMode == ViewMode.PREVIEW) MaterialTheme.colorScheme.primary
+                           else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }

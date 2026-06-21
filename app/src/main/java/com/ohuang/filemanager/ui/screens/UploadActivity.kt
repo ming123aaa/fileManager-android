@@ -16,8 +16,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
 import androidx.compose.foundation.clickable
+import androidx.core.content.ContextCompat
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -34,12 +38,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.constraintlayout.compose.State
 import androidx.lifecycle.MutableLiveData
 import com.ohuang.filemanager.config.HttpConfig
 import com.ohuang.filemanager.service.UploadService
+import com.ohuang.filemanager.ui.theme.FileManagerTheme
 
 class UploadActivity : ComponentActivity() {
 
@@ -51,9 +57,10 @@ class UploadActivity : ComponentActivity() {
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, service: IBinder) {
             binder = service as UploadService.DownUpBinder
-            binder?.getLivedata()?.observe(this@UploadActivity) {
-                progressData.value = it
-                if (it == "上传任务完成") {
+            binder?.getLivedata()?.observe(this@UploadActivity) { progress ->
+                progressData.value = progress
+                // 检查上传完成的各种可能消息
+                if (progress.contains("完成") || progress.contains("成功")) {
                     setResult(RESULT_OK)
                 }
             }
@@ -80,16 +87,24 @@ class UploadActivity : ComponentActivity() {
         }
         bindService(serviceIntent, connection, Context.BIND_AUTO_CREATE)
 
-        val initialUri = when (intent.action) {
-            Intent.ACTION_SEND -> {
+        val initialUris = when (intent.action) {
+            Intent.ACTION_SEND_MULTIPLE -> {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)
+                }
+            }
+            Intent.ACTION_SEND -> {
+                val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
                 } else {
                     @Suppress("DEPRECATION")
-                    intent.getParcelableExtra(Intent.EXTRA_STREAM)
+                    intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
                 }
+                uri?.let { listOf(it) }
             }
-
             else -> {
                 null
             }
@@ -100,9 +115,9 @@ class UploadActivity : ComponentActivity() {
 
 
         setContent {
-            MaterialTheme {
+            FileManagerTheme {
                 UploadScreen(
-                    initialUri = initialUri,
+                    initialUris = initialUris ?: emptyList(),
                     getPath = { path ?: "" },
                     getFileName = { getFileName(it) },
                     getBinder = { binder },
@@ -137,7 +152,7 @@ class UploadActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun UploadScreen(
-    initialUri: Uri?,
+    initialUris: List<Uri>,
     getPath: () -> String,
     getFileName: (Uri) -> String?,
     getBinder: () -> UploadService.DownUpBinder?,
@@ -145,8 +160,7 @@ private fun UploadScreen(
     progressData: String,
     isUploading: Boolean
 ) {
-    var selectedUri by remember { mutableStateOf(initialUri) }
-    var fileName by remember { mutableStateOf(initialUri?.let { getFileName(it) }) }
+    var selectedUris by remember { mutableStateOf(initialUris) }
 
     val context = LocalContext.current
 
@@ -162,11 +176,19 @@ private fun UploadScreen(
     }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            selectedUri = uri
-            fileName = getFileName(uri)
+        contract = ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris: List<Uri>? ->
+        if (uris != null && uris.isNotEmpty()) {
+            selectedUris = uris
+            getBinder()?.getLivedata()?.postValue("")
+        }
+    }
+
+    val addFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris: List<Uri>? ->
+        if (uris != null && uris.isNotEmpty()) {
+            selectedUris = (selectedUris + uris).distinctBy { it.toString() }
             getBinder()?.getLivedata()?.postValue("")
         }
     }
@@ -237,7 +259,7 @@ private fun UploadScreen(
                     .size(80.dp)
                     .clickable {
                         if (!isUploading) {
-                            filePickerLauncher.launch(arrayOf("*/*"))
+                            addFileLauncher.launch(arrayOf("*/*"))
                         }
                     }
             )
@@ -245,18 +267,67 @@ private fun UploadScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = fileName ?: "未选择文件",
+                text = if (selectedUris.isEmpty()) "未选择文件" else "已选择 ${selectedUris.size} 个文件",
                 style = MaterialTheme.typography.titleMedium,
                 textAlign = TextAlign.Center,
                 maxLines = 2
             )
 
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (selectedUris.isNotEmpty()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 200.dp)
+                    ) {
+                        items(selectedUris) { uri ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.InsertDriveFile,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = getFileName(uri) ?: "未知文件",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.weight(1f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                IconButton(
+                                    onClick = {
+                                        selectedUris = selectedUris.filter { it != uri }
+                                    },
+                                    enabled = !isUploading
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = "删除",
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(32.dp))
 
             when {
-
-
-
                 isUploading -> {
                     CircularProgressIndicator(modifier = Modifier.size(48.dp))
                     Spacer(modifier = Modifier.height(16.dp))
@@ -267,7 +338,6 @@ private fun UploadScreen(
                     )
                     Button(
                         onClick = {
-
                             getBinder()?.stopUpLoad()
                         },
                         modifier = Modifier
@@ -285,7 +355,7 @@ private fun UploadScreen(
                 }
 
                 else -> {
-                    if (selectedUri == null) {
+                    if (selectedUris.isEmpty()) {
                         Button(
                             onClick = { filePickerLauncher.launch(arrayOf("*/*")) },
                             modifier = Modifier
@@ -301,12 +371,36 @@ private fun UploadScreen(
                             Text("选择文件")
                         }
                     } else {
-                        OutlinedButton(
-                            onClick = { filePickerLauncher.launch(arrayOf("*/*")) },
+                        Row(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp)
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Text("更换文件")
+                            OutlinedButton(
+                                onClick = { addFileLauncher.launch(arrayOf("*/*")) },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("添加")
+                            }
+                            OutlinedButton(
+                                onClick = { filePickerLauncher.launch(arrayOf("*/*")) },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.InsertDriveFile,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("重新选择")
+                            }
                         }
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
@@ -316,8 +410,7 @@ private fun UploadScreen(
                         )
                         Button(
                             onClick = {
-
-                                getBinder()?.startUpLoad(selectedUri!!, getPath())
+                                getBinder()?.startMultiUpload(selectedUris, getPath())
                             },
                             modifier = Modifier
                                 .fillMaxWidth()

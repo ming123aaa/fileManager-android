@@ -108,6 +108,10 @@ public class UriToFile {
         }
     }
 
+    public static File copyChecheDir(Context context){
+        return  new File(context.getCacheDir(), "upload_cache");
+    }
+
     /**
      * 从 content:// URI 中获取文件名
      */

@@ -1,6 +1,8 @@
 package com.ohuang.filemanager.server.util;
 
 
+import android.os.Build;
+
 import com.ohuang.filemanager.server.adapter.RandomAccessFileBody;
 import com.yanzhenjie.andserver.framework.body.FileBody;
 import com.yanzhenjie.andserver.framework.body.StreamBody;
@@ -14,20 +16,34 @@ import java.io.*;
 import java.net.URLEncoder;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
-import java.util.Arrays;
+import java.nio.charset.Charset;
+import java.util.*;
 import java.util.Calendar;
 import java.util.HashSet;
 import java.util.Set;
 
+import kotlin.text.Charsets;
+
 public class DownloadUtil {
 
+    // 特定 Content-Type 映射
+    static final Map<String, String> CONTENT_TYPE_MAP = new HashMap<String, String>() {{
+        put("html", "text/html");
+        put("htm", "text/html");
+        put("json", "application/json");
+        put("xml", "application/xml");
+        put("css", "text/css");
+        put("js", "application/javascript");
+        put("svg", "image/svg+xml");
+    }};
+
     static final Set<String> TEXT_EXTENSIONS = new HashSet<>(Arrays.asList(
-            "md", "txt", "log", "csv", "json", "xml", "yaml", "yml", "ini", "cfg", "conf", "properties",
-            "gitignore", "ets", "kt", "java", "py", "js", "ts", "html", "css", "php",
+            "md", "txt", "log", "csv", "yaml", "yml", "ini", "cfg", "conf", "properties",
+            "gitignore", "ets", "kt", "java", "py", "ts", "php",
             "c", "cpp", "h", "go", "rs", "rb", "sh", "bat", "sql", "vue", "jsx", "tsx"
     ));
     static final Set<String> IMAGE_EXTENSIONS = new HashSet<>(Arrays.asList(
-            "png", "jpg", "jpeg", "gif", "bmp", "svg", "webp"
+            "png", "jpg", "jpeg", "gif", "bmp", "webp"
     ));
 
     static final Set<String> VIDEO_EXTENSIONS = new HashSet<>(Arrays.asList(
@@ -110,11 +126,23 @@ public class DownloadUtil {
             ext = fileName.substring(dotIndex + 1).toLowerCase();
         }
         String contentType = "";
-        contentType = TEXT_EXTENSIONS.contains(ext) ? "text/plain" : contentType;
-        contentType = IMAGE_EXTENSIONS.contains(ext) ? "image/" + ext : contentType;
-        contentType = VIDEO_EXTENSIONS.contains(ext) ? "video/" + ext : contentType;
-        contentType = AUDIO_EXTENSIONS.contains(ext) ? "audio/" + ext : contentType;
-        contentType = PDF_EXTENSIONS.contains(ext) ? "application/pdf" : contentType;
+
+        // 优先使用特定 Content-Type 映射
+        if (CONTENT_TYPE_MAP.containsKey(ext)) {
+            contentType = CONTENT_TYPE_MAP.get(ext);
+        } else if (TEXT_EXTENSIONS.contains(ext)) {
+            contentType = "text/plain";
+        } else if (IMAGE_EXTENSIONS.contains(ext)) {
+            contentType = "image/" + ext;
+        } else if (VIDEO_EXTENSIONS.contains(ext)) {
+            contentType = "video/" + ext;
+        } else if (AUDIO_EXTENSIONS.contains(ext)) {
+            contentType = "audio/" + ext;
+        } else if (PDF_EXTENSIONS.contains(ext)) {
+            contentType = "application/pdf";
+        }else {
+            contentType="application/octet-stream";
+        }
 
 
         //HTTP 响应头设置
@@ -128,11 +156,20 @@ public class DownloadUtil {
         response.setHeader("Content-Type", contentType);
 
         response.setHeader("Accept-Ranges", "bytes");
+        response.setHeader("Access-Control-Allow-Origin", "*");
         //Content-Range: 下载开始位置-下载结束位置/文件大小
         response.setHeader("Content-Range", "bytes " + startByte + "-" + endByte + "/" + file.length());
         //Content-disposition: inline; filename=xxx.xxx 表示浏览器内嵌显示该文件
         //Content-disposition: attachment; filename=xxx.xxx 表示浏览器下载该文件
-        response.setHeader("Content-Disposition", "inline;filename=" + file.getName());
+
+        String encodeFilename =file.getName();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            encodeFilename=URLEncoder.encode(file.getName(),Charsets.UTF_8);
+        }else {
+            encodeFilename = URLEncoder.encode(file.getName());
+        }
+        response.setHeader("Content-Disposition", "inline;filename=" + encodeFilename);
 
         if (range != null) {
             response.setStatus(206);

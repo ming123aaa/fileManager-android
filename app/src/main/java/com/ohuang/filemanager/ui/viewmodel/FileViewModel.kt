@@ -103,6 +103,10 @@ class FileViewModel : ViewModel() {
     private val _showBatchMoveDialog = MutableStateFlow(false)
     val showBatchMoveDialog: StateFlow<Boolean> = _showBatchMoveDialog
 
+    // 批量下载对话框
+    private val _showBatchDownloadDialog = MutableStateFlow(false)
+    val showBatchDownloadDialog: StateFlow<Boolean> = _showBatchDownloadDialog
+
     private val _previewFile = MutableStateFlow<FileItem?>(null)
     val previewFile: StateFlow<FileItem?> = _previewFile
 
@@ -817,6 +821,22 @@ class FileViewModel : ViewModel() {
     }
 
     /**
+     * 显示批量下载对话框
+     */
+    fun showBatchDownloadDialog() {
+        if (_selectedFiles.value.isNotEmpty()) {
+            _showBatchDownloadDialog.value = true
+        }
+    }
+
+    /**
+     * 隐藏批量下载对话框
+     */
+    fun hideBatchDownloadDialog() {
+        _showBatchDownloadDialog.value = false
+    }
+
+    /**
      * 批量删除选中的文件
      */
     fun deleteSelectedFiles() {
@@ -903,6 +923,59 @@ class FileViewModel : ViewModel() {
             // 刷新文件列表
             loadFiles(_currentPath.value)
         }
+    }
+
+    /**
+     * 批量下载选中的文件
+     */
+    fun downloadSelectedFiles(context: android.content.Context) {
+        if (_selectedFiles.value.isEmpty()) {
+            return
+        }
+
+        val downloadManager = context.getSystemService(android.content.Context.DOWNLOAD_SERVICE)
+                as android.app.DownloadManager
+
+        var successCount = 0
+        var skipCount = 0
+
+        for (file in _selectedFiles.value) {
+            if (file.isFolder) {
+                skipCount++
+                continue
+            }
+
+            try {
+                val url = getFileUrl(file)
+                val fileName = file.getFileName()
+
+                val request = android.app.DownloadManager.Request(android.net.Uri.parse(url)).apply {
+                    setTitle("下载 $fileName")
+                    setDescription("正在下载 $fileName")
+                    setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                    setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, fileName)
+                    setAllowedOverMetered(true)
+                    setAllowedOverRoaming(true)
+                }
+
+                downloadManager.enqueue(request)
+                successCount++
+            } catch (e: Exception) {
+                // 忽略单个文件下载失败
+            }
+        }
+
+        val message = when {
+            skipCount > 0 && successCount > 0 -> "已开始下载 $successCount 个文件，跳过 $skipCount 个文件夹"
+            skipCount > 0 -> "选中的都是文件夹，无法下载"
+            successCount > 0 -> "已开始下载 $successCount 个文件"
+            else -> "没有可下载的文件"
+        }
+        showToastMessage(message)
+
+        // 清空选中项并退出多选模式
+        _selectedFiles.value = emptySet()
+        _isMultiSelectMode.value = false
     }
 }
 

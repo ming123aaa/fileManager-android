@@ -25,11 +25,13 @@ import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
+import androidx.appcompat.app.AppCompatActivity;
+
 import java.net.URLDecoder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
-public class WebActivity extends Activity {
+public class WebActivity extends AppCompatActivity {
     public static void start(Context context, String url) {
         Intent starter = new Intent(context, WebActivity.class);
         starter.putExtra("url", url);
@@ -56,9 +58,47 @@ public class WebActivity extends Activity {
         setContentView(R.layout.activity_web);
         url = getIntent().getStringExtra("url");
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        exitFullscreen();
         initViews();
         initToolbar();
         initWebView();
+    }
+
+    private void enterFullscreen() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            getWindow().setStatusBarColor(android.graphics.Color.TRANSPARENT);
+            getWindow().setNavigationBarColor(android.graphics.Color.TRANSPARENT);
+            android.view.WindowInsetsController insetsController = getWindow().getDecorView().getWindowInsetsController();
+            insetsController.setSystemBarsAppearance(0, android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS | android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
+            insetsController.hide(android.view.WindowInsets.Type.statusBars() | android.view.WindowInsets.Type.navigationBars());
+        } else {
+            getWindow().getDecorView().setSystemUiVisibility(
+                    View.SYSTEM_UI_FLAG_FULLSCREEN |
+                            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
+                            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY |
+                            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
+                            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION |
+                            View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+            );
+        }
+    }
+
+    private void exitFullscreen() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            getWindow().setStatusBarColor(getResources().getColor(R.color.primary_dark));
+            getWindow().setNavigationBarColor(getResources().getColor(R.color.background));
+            android.view.WindowInsetsController insetsController = getWindow().getDecorView().getWindowInsetsController();
+            insetsController.setSystemBarsAppearance(android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS | android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS, android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS | android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
+            insetsController.show(android.view.WindowInsets.Type.statusBars() | android.view.WindowInsets.Type.navigationBars());
+        } else {
+            getWindow().setStatusBarColor(getResources().getColor(R.color.primary_dark));
+            getWindow().setNavigationBarColor(getResources().getColor(R.color.background));
+            getWindow().getDecorView().setSystemUiVisibility(
+                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE |
+                            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION |
+                            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+            );
+        }
     }
 
     private void initViews() {
@@ -87,6 +127,8 @@ public class WebActivity extends Activity {
     }
 
     private void initWebView() {
+
+        WebView.setWebContentsDebuggingEnabled(true);
         WebSettings settings = webView.getSettings();
         WebViewSetting.INSTANCE.setting(webView, this);
         // --- 核心基础配置 ---
@@ -102,12 +144,17 @@ public class WebActivity extends Activity {
         settings.setDisplayZoomControls(false);       // 隐藏原生缩放按钮 (UI更美观)
 
         // --- 缓存与性能优化 ---
-        settings.setCacheMode(WebSettings.LOAD_CACHE_ELSE_NETWORK); // 优先使用缓存
+        settings.setCacheMode(WebSettings.LOAD_DEFAULT); // 优先使用缓存
         settings.setLoadsImagesAutomatically(true);   // 自动加载图片
 
         // --- 文件与跨域访问 ---
         settings.setAllowFileAccess(true);            // 允许访问本地文件
         settings.setJavaScriptCanOpenWindowsAutomatically(true); // 允许JS打开新窗口
+        
+        // --- 网络图片加载 ---
+        settings.setBlockNetworkImage(false);         // 允许加载网络图片
+        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW); // 允许HTTPS页面加载HTTP资源
+        
         webView.requestFocus();
 
         webView.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
@@ -186,14 +233,7 @@ public class WebActivity extends Activity {
                 frameLayout.setVisibility(View.VISIBLE);
                 webView.setVisibility(View.GONE);
                 
-                // 全屏显示：隐藏状态栏和导航栏
-                getWindow().getDecorView().setSystemUiVisibility(
-                    View.SYSTEM_UI_FLAG_FULLSCREEN |
-                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
-                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY |
-                    View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
-                    View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                );
+                enterFullscreen();
                 
                 setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
             }
@@ -208,12 +248,7 @@ public class WebActivity extends Activity {
                     frameLayout.setVisibility(View.GONE);
                     webView.setVisibility(View.VISIBLE);
                     
-                    // 恢复状态栏和导航栏
-                    getWindow().getDecorView().setSystemUiVisibility(
-                        View.SYSTEM_UI_FLAG_LAYOUT_STABLE |
-                        View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
-                        View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                    );
+                    exitFullscreen();
                     
                     try {
                         if (mCustomViewCallback != null) {

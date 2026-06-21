@@ -952,3 +952,89 @@ fun BatchMoveDialog(
         }
     }
 }
+
+/**
+ * 批量下载对话框
+ */
+@Composable
+fun BatchDownloadDialog(
+    show: Boolean,
+    selectedFiles: Set<FileItem>,
+    onDismiss: () -> Unit,
+    onDownload: () -> Unit
+) {
+    if (!show || selectedFiles.isEmpty()) return
+
+    val folderCount = selectedFiles.count { it.isFolder }
+    val fileCount = selectedFiles.count { !it.isFolder }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Download,
+                        contentDescription = "Download",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "批量下载确认",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = buildString {
+                        append("确定要下载选中的 ${selectedFiles.size} 个项目吗？\n")
+                        if (folderCount > 0) append("文件夹: $folderCount 个 (将跳过)\n")
+                        if (fileCount > 0) append("文件: $fileCount 个")
+                    }.trim(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "文件将保存到系统 Downloads 目录",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("取消")
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Button(
+                        onClick = {
+                            onDownload()
+                        }
+                    ) {
+                        Text("下载 (${fileCount})")
+                    }
+                }
+            }
+        }
+    }
+}

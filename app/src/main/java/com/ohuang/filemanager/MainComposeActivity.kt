@@ -8,7 +8,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -19,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.ohuang.filemanager.ui.navigation.AppNavHost
+import com.ohuang.filemanager.ui.theme.FileManagerTheme
 import com.ohuang.filemanager.util.BatteryOptimizationHelper
 
 class MainComposeActivity : ComponentActivity() {
@@ -28,9 +28,7 @@ class MainComposeActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContent {
-            MaterialTheme {
-
-
+            FileManagerTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     var isShowDialog by remember{
                         mutableStateOf(false)

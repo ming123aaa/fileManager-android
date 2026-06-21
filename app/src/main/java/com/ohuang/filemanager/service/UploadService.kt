@@ -16,6 +16,7 @@ import com.ohuang.filemanager.data.ApiService
 import com.ohuang.filemanager.statedata.StateData
 import com.ohuang.filemanager.util.UriToFile
 import com.ohuang.kthttp.call.HttpCall
+import com.ohuang.kthttp.call.awaitOrNull
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -29,7 +30,7 @@ class UploadService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             notifaction()
             liveData.observeForever {
-                if (it.isNotEmpty()){
+                if (it.isNotEmpty()) {
                     showProgress(it)
                 }
             }
@@ -39,10 +40,15 @@ class UploadService : Service() {
     private val CHANNEL_ID2 = "Channel2"
     var notifId_1 = 0x1
     var binder = DownUpBinder()
-    var liveData = MutableLiveData<String>("")
-    var isUploading: StateData<Boolean> = StateData(false)
 
-    var call: HttpCall<String>?= null
+    companion object {
+        val liveData = MutableLiveData<String>("")
+        val isUploading: StateData<Boolean> = StateData(false)
+    }
+
+
+    var call: HttpCall<String>? = null
+    var isCannel: Boolean = false
 
     private fun notifaction() {
         createNotificationChannel()
@@ -75,20 +81,28 @@ class UploadService : Service() {
     }
 
     inner class DownUpBinder : Binder() {
-        fun startUpLoad(uri: Uri,path: String) {
+        fun startUpLoad(uri: Uri, path: String) {
             isUploading.value?.let {
                 if (!it) {
-                    upload(uri,path)
+                    upload(listOf(uri), path)
                 }
             }
         }
 
-        fun stopUpLoad(){
+        fun startMultiUpload(uris: List<Uri>, path: String) {
+            isUploading.value?.let {
+                if (!it) {
+                    upload(uris, path)
+                }
+            }
+        }
+
+        fun stopUpLoad() {
+            isCannel = true
             call?.cancel()
         }
 
         fun isUpload() = isUploading
-
 
 
         fun getLivedata() = liveData
@@ -105,67 +119,86 @@ class UploadService : Service() {
         }
     }
 
-    fun Number.toFixed(): String{
+    fun Number.toFixed(): String {
         return "%.2f".format(this@toFixed)
     }
 
-    fun upload(fileUri: Uri,path: String) {
+    fun upload(fileUris: List<Uri>, path: String) {
+        if (isUploading.value) {
+            return
+        }
         isUploading.value = true
         showProgress("正在准备上传")
         liveData.postValue("正在准备上传")
 
         GlobalScope.launch(Dispatchers.IO) {
+            var successCount = 0
+            var failCount = 0
 
-            var file: File? =null
-            try {
-                file = UriToFile.uriToFile(fileUri, this@UploadService)
-            } catch (e: Throwable) {
-                e.printStackTrace()
-            }
-            if (file == null) {
-                isUploading.postValue(false)
-                showProgress("获取文件失败,请检查权限和文件")
-                liveData.postValue("获取文件失败,请检查权限和文件")
-                return@launch
-            }
-
-            call= ApiService.uploadFile(file,path) { current, total ->
-                val s = "${(current / (1024 * 1024 * 1.0f)).toFixed()}MB/${(total / (1024 * 1024 * 1.0f)).toFixed()}MB"
-                val progress = "上传中:${(current * 100 / total)}%  $s"
-                liveData.postValue(progress)
-
-
-            }
-            call?.request({ error ->
-                call=null
-                GlobalScope.launch(Dispatchers.Main) {
-                    withContext(Dispatchers.IO){
-                        clearFileCheche()
-                    }
-                    isUploading.postValue(false)
-                    liveData.postValue("上传失败: ${error.message}")
+            for ((index, fileUri) in fileUris.withIndex()) {
+                if (!isUploading.value) {
+                    break
                 }
-            }) { _ ->
-                call=null
-                GlobalScope.launch(Dispatchers.Main) {
-                    withContext(Dispatchers.IO){
-                        clearFileCheche()
-                    }
-                    liveData.postValue("上传任务完成")
-                    isUploading.value = false
+                if (isCannel) {
+                    break
                 }
+
+                var file: File? = null
+                try {
+                    file = UriToFile.uriToFile(fileUri, this@UploadService)
+                } catch (e: Throwable) {
+                    e.printStackTrace()
+                }
+                if (file == null) {
+                    failCount++
+                    continue
+                }
+                val num = index + 1
+
+                val fileName = file.name
+                liveData.postValue("正在上传 ($num/${fileUris.size}): $fileName")
+                showProgress("正在上传 ($num/${fileUris.size}): $fileName")
+
+                call = ApiService.uploadFile(file, path) { current, total ->
+                    val s =
+                        "${(current / (1024 * 1024 * 1.0f)).toFixed()}MB/${(total / (1024 * 1024 * 1.0f)).toFixed()}MB"
+                    val progress =
+                        "正在上传 ($num/${fileUris.size}): $fileName \n上传中:${(current * 100 / total)}%  $s"
+                    liveData.postValue(progress)
+                }
+
+                val result = call?.awaitOrNull()
+
+
+                if (result != null && result.isNotBlank()) {
+                    successCount++
+                } else {
+                    failCount++
+                }
+
+
             }
+            withContext(Dispatchers.IO) {
+                clearFileCheche()
+            }
+
+            isCannel = false
+            isUploading.postValue(false)
+            val message = when {
+                failCount == 0 -> "全部上传完成，成功 $successCount 个"
+                successCount == 0 -> "上传失败，共失败 $failCount 个"
+                else -> "上传完成，成功 $successCount 个，失败 $failCount 个"
+            }
+            liveData.postValue(message)
+            showProgress(message)
         }
-
-
-
     }
 
-    fun clearFileCheche(){
+    fun clearFileCheche() {
         try {
-            val cacheDir1 = applicationContext.cacheDir
+            val cacheDir1 = UriToFile.copyChecheDir(applicationContext)
             cacheDir1.deleteRecursively()
-        }catch (e: Throwable){
+        } catch (e: Throwable) {
 
         }
     }

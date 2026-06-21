@@ -72,6 +72,7 @@
 
 
         <activity android:name=".WebActivity"
+            android:theme="@style/Theme.FileManager.NoActionBar"
             android:exported="true"
             android:configChanges="screenLayout|screenSize|orientation|keyboardHidden|mcc|mnc|fontScale|density|locale|layoutDirection"
             >
@@ -97,6 +98,20 @@
 
                 <data android:mimeType="*/*" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+
+                <data android:mimeType="*/*" />
+            </intent-filter>
+        </activity>
+
+        <activity android:name=".ui.screens.PowerSavingActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified"
+            android:configChanges="screenLayout|screenSize|orientation|keyboardHidden|mcc|mnc|fontScale|density|locale|layoutDirection"
+            android:theme="@style/Theme.FileManager.NoActionBar">
         </activity>
 
         <service

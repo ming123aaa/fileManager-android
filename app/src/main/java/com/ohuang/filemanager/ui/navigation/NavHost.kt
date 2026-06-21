@@ -1,5 +1,6 @@
 package com.ohuang.filemanager.ui.navigation
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.foundation.layout.Box
@@ -44,6 +45,7 @@ fun AppNavHost(onBack: () -> Unit = {}) {
         composable("filemanager") {
             Row() {
 
+
                 FragmentBox(
                     modifier = Modifier.weight(1f),
                     isChange = if (deviceType == DeviceType.TABLET) {
@@ -53,11 +55,6 @@ fun AppNavHost(onBack: () -> Unit = {}) {
                     }
                 ) {
                     FileManagerScreen(navController, onBack = {
-                        if (deviceType == DeviceType.TABLET && showSetting) {
-                            showSetting = false
-                            return@FileManagerScreen
-                        }
-
                         onBack()
                     }, goSetting = {
                         if (deviceType == DeviceType.TABLET) {
@@ -66,9 +63,13 @@ fun AppNavHost(onBack: () -> Unit = {}) {
                             navController.navigate("settings")
                         }
                     })
+                    BackHandler(showSetting) {
+                        showSetting = false
+                    }
                 }
 
                 if (deviceType == DeviceType.TABLET) {
+
                     AnimatedVisibility(state) {
                         Box(modifier = Modifier.width(settingWidth)) {
                             SettingsScreen(navController, onBack = { showSetting = false })

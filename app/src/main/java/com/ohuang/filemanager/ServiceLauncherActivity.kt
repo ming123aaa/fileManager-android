@@ -48,6 +48,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
+import com.ohuang.filemanager.ui.theme.FileManagerTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -89,7 +90,7 @@ class ServiceLauncherActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContent {
-            MaterialTheme {
+            FileManagerTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     var port: Int by remember {
                         mutableIntStateOf(getServicePort())
