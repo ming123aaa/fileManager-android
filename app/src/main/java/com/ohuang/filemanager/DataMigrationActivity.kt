@@ -1,6 +1,5 @@
 package com.ohuang.filemanager
 
-import android.R
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -29,7 +28,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowRight
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowRight
 import androidx.compose.material.icons.filled.FolderOpen
@@ -40,10 +38,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material.icons.filled.Input
-import androidx.compose.material.icons.filled.MoveDown
-import androidx.compose.material.icons.filled.MoveUp
 import androidx.compose.material.icons.filled.Output
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -57,7 +52,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import com.ohuang.filemanager.ui.theme.FileManagerTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -65,7 +59,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -126,12 +119,12 @@ class DataMigrationActivity : ComponentActivity() {
                 .padding(horizontal = 15.dp, vertical = 5.dp)
         ) {
 
-            val baseLacalFilePath: String by remember {
+            val baseLocalFilePath: String by remember {
                 mutableStateOf(getServiceFilePath())
             }
 
             var localFilePath: String by remember {
-                mutableStateOf(baseLacalFilePath)
+                mutableStateOf(baseLocalFilePath)
             }
 
             var targetFilePath: String by remember {
@@ -156,17 +149,18 @@ class DataMigrationActivity : ComponentActivity() {
                 mutableStateOf(false)
             }
 
-            var currentDir by remember {
-                mutableStateOf(File(baseLacalFilePath))
-            }
+
 
             LoadingDialog(show = showLoading)
 
             if (showFolderDialog) {
+                var currentDir by remember {
+                    mutableStateOf(File(localFilePath))
+                }
                 val folders = remember(currentDir.absolutePath) {
                     currentDir.listFiles { file -> file.isDirectory }?.filter { it.canRead() } ?: emptyList()
                 }
-                val canGoBack = currentDir.absolutePath != baseLacalFilePath
+                val canGoBack = currentDir.absolutePath != baseLocalFilePath
 
                 androidx.compose.material3.AlertDialog(
                     onDismissRequest = { showFolderDialog = false },
@@ -177,6 +171,12 @@ class DataMigrationActivity : ComponentActivity() {
                                     currentDir = currentDir.parentFile ?: currentDir
                                 }) {
                                     Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "返回")
+                                }
+                            }else{
+                                IconButton(onClick = {
+
+                                }) {
+                                    Icon(imageVector = Icons.Default.Home, contentDescription = "根目录")
                                 }
                             }
                             Text(
@@ -198,7 +198,7 @@ class DataMigrationActivity : ComponentActivity() {
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    currentDir.absolutePath.replace(baseLacalFilePath,"根目录"),
+                                    currentDir.absolutePath.replace(baseLocalFilePath,"根目录"),
                                     style = androidx.compose.material3.MaterialTheme.typography.bodyLarge,
                                     color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 1,
@@ -207,7 +207,7 @@ class DataMigrationActivity : ComponentActivity() {
                                 )
                             }
 
-                            LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                            LazyColumn(modifier = Modifier.fillMaxWidth().height(300.dp)) {
                                 items(folders) { folder ->
                                     Row(
                                         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
@@ -255,7 +255,7 @@ class DataMigrationActivity : ComponentActivity() {
                         Button(onClick = {
                             localFilePath = currentDir.absolutePath
                             showFolderDialog = false
-                            currentDir = File(baseLacalFilePath)
+                            currentDir = File(baseLocalFilePath)
                         }) {
                             Text("确认选择")
                         }
@@ -263,7 +263,7 @@ class DataMigrationActivity : ComponentActivity() {
                     dismissButton = {
                         Button(onClick = {
                             showFolderDialog = false
-                            currentDir = File(baseLacalFilePath)
+                            currentDir = File(baseLocalFilePath)
                         }) {
                             Text("取消")
                         }
@@ -299,7 +299,7 @@ class DataMigrationActivity : ComponentActivity() {
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = baseLacalFilePath,
+                            text = baseLocalFilePath,
                             style = MaterialTheme.typography.bodyLarge,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis
@@ -321,7 +321,7 @@ class DataMigrationActivity : ComponentActivity() {
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                currentDir.absolutePath.replace(baseLacalFilePath,"根目录"),
+                                localFilePath.replace(baseLocalFilePath,"根目录"),
                                 style = androidx.compose.material3.MaterialTheme.typography.bodyLarge,
                                 color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,
@@ -484,7 +484,7 @@ class DataMigrationActivity : ComponentActivity() {
                     modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("导出(本地->目标文件夹")
+                Text("导出(本地->目标文件夹)")
             }
 
             Text("" + tipString)

@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -266,8 +267,7 @@ private fun LocalService(context: Context) {
                         context, "已复制",
                         Toast.LENGTH_SHORT
                     ).show()
-                })
-            , color = Color.Red
+                }), color = Color.Red
         )
 
         Spacer(modifier = Modifier.height(15.dp))
@@ -291,7 +291,7 @@ private fun LocalService(context: Context) {
         Spacer(modifier = Modifier.height(15.dp))
         Button(
             onClick = {
-                BatteryOptimizationHelper.checkAndRequest(context){
+                BatteryOptimizationHelper.checkAndRequest(context) {
                     if (!it) {
                         BatteryOptimizationHelper.openAppSettings(context)
                     }
@@ -326,8 +326,6 @@ private fun LocalService(context: Context) {
             Spacer(modifier = Modifier.width(8.dp))
             Text("黑屏省电")
         }
-
-
 
 
     }
@@ -376,23 +374,7 @@ private fun AboutContent(context: Context) {
         // 清理缓存功能
         CacheCleanerCard(context)
 
-        Spacer(modifier = Modifier.height(16.dp))
 
-        var showClearDialog by remember { mutableStateOf(false) }
-        Button(
-            onClick = {
-                showClearDialog = true
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Icon(
-                imageVector = Icons.Default.CleaningServices,
-                contentDescription = null,
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("清空内部文件")
-        }
         Spacer(modifier = Modifier.height(16.dp))
         Button(
             onClick = {
@@ -409,13 +391,39 @@ private fun AboutContent(context: Context) {
             Text("本地文件数据")
         }
 
+        Spacer(modifier = Modifier.height(16.dp))
+
+        var showClearDialog by remember { mutableStateOf(false) }
+        Button(
+            onClick = {
+                showClearDialog = true
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.error
+            )
+            ) {
+            Icon(
+                imageVector = Icons.Default.CleaningServices,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("清空内部文件")
+        }
+
         val rememberCoroutineScope = rememberCoroutineScope()
         if (showClearDialog) {
 
             AlertDialog(
                 onDismissRequest = { showClearDialog = false },
                 title = { Text("确认清除") },
-                text = { Text("确定要清空内部文件吗？此操作不可恢复！") },
+                text = {
+                    Text(
+                        "确定要清空内部文件吗？此操作不可恢复！",
+                        color = MaterialTheme.colorScheme.error
+                    )
+                },
                 confirmButton = {
                     TextButton(
                         onClick = {
@@ -440,7 +448,7 @@ private fun AboutContent(context: Context) {
 
                         }
                     ) {
-                        Text("确定")
+                        Text("确定", color = MaterialTheme.colorScheme.error)
                     }
                 },
                 dismissButton = {
@@ -517,7 +525,8 @@ private fun CacheCleanerCard(context: Context) {
                             .show()
                         return@Button
                     }
-                    showConfirmDialog = true },
+                    showConfirmDialog = true
+                },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = cacheSize != "计算中..." && cacheSize != "0 B"
             ) {
@@ -548,8 +557,9 @@ private fun CacheCleanerCard(context: Context) {
             confirmButton = {
                 TextButton(
                     onClick = {
-                        if (UploadService.isUploading.value){
-                            Toast.makeText(context,"文件上传中,请稍后再清理", Toast.LENGTH_SHORT).show()
+                        if (UploadService.isUploading.value) {
+                            Toast.makeText(context, "文件上传中,请稍后再清理", Toast.LENGTH_SHORT)
+                                .show()
                             return@TextButton
                         }
                         showConfirmDialog = false
