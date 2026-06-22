@@ -289,7 +289,7 @@ fun FileManagerScreen(
                                 if (FileType.isMediaType(file.name)) {
 
                                     // 图片或视频 -> 打开媒体预览
-                                    val mediaFiles = files.filter {
+                                    val mediaFiles = files.filter { it -> !it.isFolder }.filter {
                                         FileType.isMediaType(it.name)
                                     }.map {
                                         MediaFileInfo(
@@ -320,9 +320,14 @@ fun FileManagerScreen(
                             }
                         },
                         onPreview = { file ->
+                            if (file.isFolder) {
+                                viewModel.navigateToFolder(file)
+                                viewModel.setSelectedFile(null)
+                                return@FileList
+                            }
                             if (FileType.isMediaType(file.name)) {
                                 // 图片或视频 -> 打开媒体预览
-                                val mediaFiles = files.filter {
+                                val mediaFiles = files.filter { it -> !it.isFolder }.filter {
                                     FileType.isMediaType(it.name)
                                 }.map {
                                     MediaFileInfo(
