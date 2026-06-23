@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -560,18 +559,11 @@ fun EditDialog(
                     androidx.compose.foundation.text.BasicTextField(
                         value = editContent,
                         onValueChange = { editContent = it },
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .verticalScroll(rememberScrollState()),
+                        modifier = Modifier.fillMaxSize(),
                         textStyle = MaterialTheme.typography.bodyMedium,
+                        maxLines = Int.MAX_VALUE,
                         keyboardOptions = KeyboardOptions(
-                            imeAction = ImeAction.Done
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onDone = {
-                                keyboardController?.hide()
-                                focusManager.clearFocus()
-                            }
+                            imeAction = ImeAction.Default
                         ),
                         decorationBox = { innerTextField ->
                             if (editContent.isEmpty()) {
