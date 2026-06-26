@@ -42,6 +42,20 @@ object AppDownloadManager {
         MutableStateFlow(SPUtil.get(AppContext.instance, "_isContinueDownload", true) as Boolean)
     val isContinueDownload: StateFlow<Boolean> = _isContinueDownload
 
+    /** 下载间隔 */
+    private val _downloadInterval =
+        MutableStateFlow(SPUtil.get(AppContext.instance, "_downloadInterval", 100) as Long)
+    val downloadInterval: StateFlow<Long> = _downloadInterval
+
+    fun setDownloadInterval(time: Long){
+        var fTime=100L
+        if (time>=0&&time<1000){
+            fTime=time
+        }
+        SPUtil.put(AppContext.instance, "_downloadInterval", fTime)
+        _downloadInterval.value=fTime
+    }
+
     fun setContinueDownload(value: Boolean) {
         SPUtil.put(AppContext.instance, "_isContinueDownload", value)
         _isContinueDownload.value = value
@@ -147,6 +161,7 @@ object AppDownloadManager {
 
             val files = ApiService.getAllFiles(serverPath).awaitOrNull() ?: return@coroutineScope
             for (item in files) {
+                delay(_downloadInterval.value)
                 if (!isActive) {
                     return@coroutineScope
                 }
@@ -156,7 +171,7 @@ object AppDownloadManager {
                 if (item.isFolder) {
                     val subDir = File(localDir, item.name)
                     if (!subDir.exists()) subDir.mkdirs()
-                    delay(100)
+
                     scanFolder(itemServerPath, subDir, fileCall)
                 } else {
                     val file = File(localDir, item.name)
@@ -182,7 +197,10 @@ object AppDownloadManager {
 
 
         val job = scope.launch {
+                
             try {
+                
+                delay(_downloadInterval.value)
                 val task = tasks[taskId] ?: return@launch
 
                 if (task.isFolder) {

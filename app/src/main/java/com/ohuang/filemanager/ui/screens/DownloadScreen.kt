@@ -37,6 +37,7 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
     val tasks = AppDownloadManager.tasks.map { it.value }
     val isContinueDownload by AppDownloadManager.isContinueDownload.collectAsState()
     val isPaused by AppDownloadManager.isPaused.collectAsState()
+    val downloadInterval by AppDownloadManager.downloadInterval.collectAsState()
 
     var selectedFilter by remember { mutableStateOf(DownloadFilter.ALL) }
     val selectedTaskIds = remember { mutableStateListOf<Long>() }
@@ -196,6 +197,35 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
                 Switch(
                     checked = isContinueDownload,
                     onCheckedChange = { AppDownloadManager.setContinueDownload(it) }
+                )
+            }
+
+            // 下载间隔设置
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "下载间隔",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = "${downloadInterval}ms",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Slider(
+                    value = downloadInterval.toFloat(),
+                    onValueChange = { AppDownloadManager.setDownloadInterval(it.toLong()) },
+                    valueRange = 0f..999f,
+                    steps = 998
                 )
             }
 
