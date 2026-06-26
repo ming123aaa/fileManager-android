@@ -35,6 +35,7 @@ fun Toolbar(
     onSortDirectionChanged: () -> Unit,
     onUploadClick: () -> Unit,
     onCreateFolderClick: () -> Unit,
+    onCreateFileClick: () -> Unit,
     onGoUpClick: () -> Unit,
     canGoUp: Boolean,
     viewMode: ViewMode = ViewMode.GRID,
@@ -102,6 +103,14 @@ fun Toolbar(
                 Icon(
                     imageVector = Icons.Default.CreateNewFolder,
                     contentDescription = "Create folder",
+                    tint = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            IconButton(onClick = onCreateFileClick) {
+                Icon(
+                    imageVector = Icons.Default.NoteAdd,
+                    contentDescription = "Create file",
                     tint = MaterialTheme.colorScheme.onSurface
                 )
             }

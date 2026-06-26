@@ -12,10 +12,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.ohuang.filemanager.ui.screens.DownloadScreen
 import com.ohuang.filemanager.ui.screens.FileManagerScreen
 import com.ohuang.filemanager.ui.screens.SettingsScreen
 import com.ohuang.filemanager.ui.utils.DeviceType
@@ -28,28 +30,33 @@ fun AppNavHost(onBack: () -> Unit = {}) {
     val navController = rememberNavController()
     val deviceType = rememberDeviceType()
     val settingWidth = rememberSettingScreenWidth()
-    var showSetting by remember { mutableStateOf(false) }
-    val state = remember { MutableTransitionState(false) }
-    LaunchedEffect(showSetting) {
-        if (showSetting) {
-            state.targetState = true
-        } else {
-            state.targetState = false
-        }
-    }
+    var showScreenName by remember { mutableStateOf("") }
+
 
     NavHost(
         navController = navController,
         startDestination = "filemanager"
     ) {
         composable("filemanager") {
+       
             Row() {
 
+                val state = remember() { SnapshotStateMap<String,MutableTransitionState<Boolean>>().apply {
+                    put("settings",MutableTransitionState<Boolean>(false))
+                    put("downloads",MutableTransitionState<Boolean>(false))
+                    put("",MutableTransitionState<Boolean>(false))
+                } }
+                LaunchedEffect(showScreenName) {
+                    state.forEach { entry ->
+                        entry.value.targetState=
+                            showScreenName==entry.key
+                    }
+                }
 
                 FragmentBox(
                     modifier = Modifier.weight(1f),
                     isChange = if (deviceType == DeviceType.TABLET) {
-                        state.isIdle
+                        state[""]!!.isIdle
                     } else {
                         true
                     }
@@ -58,21 +65,34 @@ fun AppNavHost(onBack: () -> Unit = {}) {
                         onBack()
                     }, goSetting = {
                         if (deviceType == DeviceType.TABLET) {
-                            showSetting = true
+                            showScreenName = "settings"
                         } else {
                             navController.navigate("settings")
                         }
+                    }, goDownload = {
+                        if (deviceType == DeviceType.TABLET) {
+                            showScreenName = "downloads"
+                        } else {
+                            navController.navigate("downloads")
+                        }
                     })
-                    BackHandler(showSetting) {
-                        showSetting = false
+                    BackHandler(showScreenName.isNotEmpty()) {
+                        showScreenName = ""
                     }
                 }
 
                 if (deviceType == DeviceType.TABLET) {
 
-                    AnimatedVisibility(state) {
+                    AnimatedVisibility(state[""]!!) { }
+
+                    AnimatedVisibility(state["settings"]!!) {
                         Box(modifier = Modifier.width(settingWidth)) {
-                            SettingsScreen(navController, onBack = { showSetting = false })
+                            SettingsScreen(navController, onBack = { showScreenName = "" })
+                        }
+                    }
+                    AnimatedVisibility(state["downloads"]!!) {
+                        Box(modifier = Modifier.width(settingWidth)) {
+                            DownloadScreen(navController, onBack = { showScreenName = "" })
                         }
                     }
                 }
@@ -81,7 +101,11 @@ fun AppNavHost(onBack: () -> Unit = {}) {
         }
 
         composable("settings") {
-            SettingsScreen(navController, onBack = { navController.popBackStack() })
+            SettingsScreen(navController, onBack = { navController.navigateUp() })
+        }
+
+        composable("downloads") {
+            DownloadScreen(navController, onBack = { navController.navigateUp() })
         }
     }
 }

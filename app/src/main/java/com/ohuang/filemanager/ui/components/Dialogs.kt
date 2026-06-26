@@ -102,6 +102,81 @@ fun CreateFolderDialog(
 }
 
 @Composable
+fun CreateFileDialog(
+    show: Boolean,
+    onDismiss: () -> Unit,
+    onCreate: (String) -> Unit
+) {
+    if (!show) return
+
+    var fileName by remember { mutableStateOf("") }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.NoteAdd,
+                        contentDescription = "Create file",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "创建文件",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = fileName,
+                    onValueChange = { fileName = it },
+                    label = { Text("文件名称") },
+                    placeholder = { Text("请输入文件名称，如 test.txt") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("取消")
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Button(
+                        onClick = {
+                            if (fileName.trim().isNotEmpty()) {
+                                onCreate(fileName.trim())
+                            }
+                        },
+                        enabled = fileName.trim().isNotEmpty()
+                    ) {
+                        Text("创建")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun RenameDialog(
     show: Boolean,
     file: FileItem?,
@@ -647,6 +722,11 @@ fun DownloadDialog(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "文件将保存到系统 Download/fileManager 目录",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
 
                 Text(
                     text = "确定要下载文件 \"${file.getFileName()}\" 吗？",
@@ -993,7 +1073,7 @@ fun BatchDownloadDialog(
                 Text(
                     text = buildString {
                         append("确定要下载选中的 ${selectedFiles.size} 个项目吗？\n")
-                        if (folderCount > 0) append("文件夹: $folderCount 个 (将跳过)\n")
+                        if (folderCount > 0) append("文件夹: $folderCount 个\n")
                         if (fileCount > 0) append("文件: $fileCount 个")
                     }.trim(),
                     style = MaterialTheme.typography.bodyMedium,
@@ -1003,7 +1083,7 @@ fun BatchDownloadDialog(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "文件将保存到系统 Downloads 目录",
+                    text = "文件将保存到系统 Download/fileManager 目录",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1023,7 +1103,7 @@ fun BatchDownloadDialog(
                             onDownload()
                         }
                     ) {
-                        Text("下载 (${fileCount})")
+                        Text("下载 (${selectedFiles.size})")
                     }
                 }
             }

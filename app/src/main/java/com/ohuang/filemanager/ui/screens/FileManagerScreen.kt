@@ -33,6 +33,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.ohuang.filemanager.data.AppDownloadManager
 import com.ohuang.filemanager.config.HttpConfig
 import com.ohuang.filemanager.data.FileItem
 import com.ohuang.filemanager.MediaFileInfo
@@ -51,7 +52,10 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FileManagerScreen(
-    navController: NavController, onBack: () -> Unit = {}, goSetting: () -> Unit
+    navController: NavController,
+    onBack: () -> Unit = {},
+    goSetting: () -> Unit,
+    goDownload: () -> Unit = {}
 ) {
     val viewModel: FileViewModel = viewModel()
     val context = LocalContext.current
@@ -82,22 +86,6 @@ fun FileManagerScreen(
         }
     }
 
-    // 下载权限请求（Android 10.0 之前需要）
-    var pendingDownloadFile by remember { mutableStateOf<FileItem?>(null) }
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        if (permissions.all { it.value }) {
-            pendingDownloadFile?.let { file ->
-                startSystemDownload(context, file, viewModel)
-                pendingDownloadFile = null
-            }
-        } else {
-            Toast.makeText(context, "需要存储权限才能下载文件", Toast.LENGTH_SHORT).show()
-            pendingDownloadFile = null
-        }
-    }
-
     // 下拉刷新状态：加载完成时自动结束刷新动画
     var isRefreshing by remember { mutableStateOf(false) }
     LaunchedEffect(isLoading) {
@@ -107,9 +95,9 @@ fun FileManagerScreen(
     }
     BackHandler {
 
-        if (viewModel.isMultiSelectMode.value){
+        if (viewModel.isMultiSelectMode.value) {
             viewModel.exitMultiSelectMode()
-        }else if (viewModel.currentPath.value.isNotEmpty()) {
+        } else if (viewModel.currentPath.value.isNotEmpty()) {
             viewModel.goUp()
         } else {
             onBack()
@@ -118,12 +106,20 @@ fun FileManagerScreen(
     }
 
     val showMkdirDialog by viewModel.showMkdirDialog.collectAsState()
+    val showCreateFileDialog by viewModel.showCreateFileDialog.collectAsState()
     val showRenameDialog by viewModel.showRenameDialog.collectAsState()
     val showDeleteDialog by viewModel.showDeleteDialog.collectAsState()
     val showMoveDialog by viewModel.showMoveDialog.collectAsState()
     val showDownloadDialog by viewModel.showDownloadDialog.collectAsState()
     val showEditDialog by viewModel.showEditDialog.collectAsState()
     val showLoadingDialog by viewModel.showLoadingDialog.collectAsState()
+
+    val downloadTasks = AppDownloadManager.tasks
+    val activeDownloadCount by remember {
+        derivedStateOf {
+            downloadTasks.size
+        }
+    }
 
     val renameFile by viewModel.renameFile.collectAsState()
     val deleteFile by viewModel.deleteFile.collectAsState()
@@ -149,7 +145,7 @@ fun FileManagerScreen(
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { viewModel.setSearchQuery(it) },
-                        placeholder = { Text("搜索文件或文件夹...") },
+                        placeholder = { Text("文件查找...") },
                         leadingIcon = {
                             Icon(
                                 imageVector = Icons.Default.Search,
@@ -176,6 +172,20 @@ fun FileManagerScreen(
                     )
                 },
                 actions = {
+                    BadgedBox(
+                        badge = {
+                            if (activeDownloadCount > 0) {
+                                Badge { Text(if (activeDownloadCount > 99) "99+" else "$activeDownloadCount") }
+                            }
+                        }
+                    ) {
+                        IconButton(onClick = goDownload) {
+                            Icon(
+                                imageVector = Icons.Default.Download,
+                                contentDescription = "Downloads"
+                            )
+                        }
+                    }
                     IconButton(onClick = goSetting) {
                         Icon(
                             imageVector = Icons.Default.Settings,
@@ -226,6 +236,7 @@ fun FileManagerScreen(
                         uploadLauncher.launch(intent)
                     },
                     onCreateFolderClick = { viewModel.showMkdirDialog() },
+                    onCreateFileClick = { viewModel.showCreateFileDialog() },
                     onGoUpClick = { viewModel.goUp() },
                     canGoUp = currentPath.isNotEmpty(),
                     viewMode = viewMode,
@@ -388,10 +399,10 @@ fun FileManagerScreen(
                                 firstVisibleItemScrollOffset = lazyGridState.firstVisibleItemScrollOffset
                             )
                             delay(100)
-                            isShowLoading = isLoading
+                            isShowLoading = true
                         } else {
                             lazyGridState = viewModel.getLazyGridState()
-                            isShowLoading = isLoading
+                            isShowLoading = false
                         }
                     }
 
@@ -445,6 +456,12 @@ fun FileManagerScreen(
         onCreate = { viewModel.createFolder(it) }
     )
 
+    CreateFileDialog(
+        show = showCreateFileDialog,
+        onDismiss = { viewModel.hideCreateFileDialog() },
+        onCreate = { viewModel.createFile(it) }
+    )
+
     RenameDialog(
         show = showRenameDialog,
         file = renameFile,
@@ -487,20 +504,7 @@ fun FileManagerScreen(
         onDownload = {
             downloadFile?.let { file ->
                 viewModel.hideDownloadDialog()
-                // Android 10.0 (API 29) 及以上版本不需要请求存储权限
-                // Android 10.0 之前需要检查并请求读写权限
-                if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q) {
-                    checkStoragePermissionAndDownload(
-                        context,
-                        file,
-                        viewModel,
-                        permissionLauncher
-                    ) {
-                        pendingDownloadFile = file
-                    }
-                } else {
-                    startSystemDownload(context, file, viewModel)
-                }
+                viewModel.downloadFileOrFolder(context, file)
             }
         }
     )
@@ -555,73 +559,6 @@ fun FileManagerScreen(
 private fun getFileUrl(viewModel: FileViewModel, file: FileItem): String {
 
     return viewModel.getFileUrl(file)
-}
-
-/**
- * 检查存储权限并下载（Android 10.0 之前版本）
- */
-private fun checkStoragePermissionAndDownload(
-    context: Context,
-    file: FileItem,
-    viewModel: FileViewModel,
-    permissionLauncher: androidx.activity.result.ActivityResultLauncher<Array<String>>,
-    onPermissionNeeded: () -> Unit
-) {
-    val readPermission = android.Manifest.permission.READ_EXTERNAL_STORAGE
-    val writePermission = android.Manifest.permission.WRITE_EXTERNAL_STORAGE
-
-    val hasReadPermission = android.content.pm.PackageManager.PERMISSION_GRANTED ==
-            context.checkSelfPermission(readPermission)
-    val hasWritePermission = android.content.pm.PackageManager.PERMISSION_GRANTED ==
-            context.checkSelfPermission(writePermission)
-
-    if (hasReadPermission && hasWritePermission) {
-        // 已有权限，直接下载
-        startSystemDownload(context, file, viewModel)
-    } else {
-        // 需要请求权限
-        onPermissionNeeded()
-        permissionLauncher.launch(arrayOf(readPermission, writePermission))
-    }
-}
-
-/**
- * 使用系统下载器下载文件
- */
-private fun startSystemDownload(context: Context, file: FileItem, viewModel: FileViewModel) {
-    try {
-        val url = getFileUrl(viewModel, file)
-        val fileName = file.getFileName()
-
-        val request = android.app.DownloadManager.Request(Uri.parse(url)).apply {
-            setTitle("下载 $fileName")
-            setDescription("正在下载 $fileName")
-            setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, fileName)
-            setAllowedOverMetered(true)
-            setAllowedOverRoaming(true)
-        }
-
-        val downloadManager =
-            context.getSystemService(Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
-        downloadManager.enqueue(request)
-
-        Toast.makeText(context, "已开始下载: $fileName", Toast.LENGTH_SHORT).show()
-    } catch (e: Exception) {
-        Toast.makeText(context, "下载失败: ${e.message}", Toast.LENGTH_SHORT).show()
-    }
-}
-
-/**
- * 下载文件：构建下载 URL 并通过浏览器打开（保留作为后备方案）
- */
-private fun downloadFile(context: Context, viewModel: FileViewModel, file: FileItem) {
-    try {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(getFileUrl(viewModel, file)))
-        context.startActivity(intent)
-    } catch (e: Exception) {
-        Toast.makeText(context, "下载失败: ${e.message}", Toast.LENGTH_SHORT).show()
-    }
 }
 
 /**

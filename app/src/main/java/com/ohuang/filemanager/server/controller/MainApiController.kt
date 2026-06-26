@@ -287,7 +287,7 @@ class MainApiController {
     @GetMapping("/writeText")
     fun writeTextGet(
         request: HttpRequest,
-        @RequestParam("txt") txt: String,
+        @RequestParam("txt",required = false, defaultValue = "") txt: String,
         @RequestParam(value = "path", required = false, defaultValue = "test.txt") path: String
     ): String {
         return writeTextInternal(getBasePath(), txt, path)
@@ -296,7 +296,7 @@ class MainApiController {
     @PostMapping("/writeText")
     fun writeTextPost(
         request: HttpRequest,
-        @RequestParam("txt") txt: String,
+        @RequestParam("txt",required = false, defaultValue = "") txt: String,
         @RequestParam(value = "path", required = false, defaultValue = "test.txt") path: String
     ): String {
         return writeTextInternal(getBasePath(), txt, path)
@@ -306,10 +306,14 @@ class MainApiController {
         val file = safePath(basePath, path)
         return try {
             FileOutputStream(file).use { fos ->
-                fos.write(txt.toByteArray(StandardCharsets.UTF_8))
+                if(txt.isEmpty()){
+                    fos.write(ByteArray(0))
+                }else {
+                    fos.write(txt.toByteArray(StandardCharsets.UTF_8))
+                }
             }
             "写入成功"
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             "写入失败: ${e.message}"
         }
     }
@@ -381,6 +385,41 @@ class MainApiController {
         } catch (e: Exception) {
         }
         return StandardCharsets.UTF_8
+    }
+
+    @GetMapping("/createFile")
+    fun createFileGet(
+        request: HttpRequest,
+        @RequestParam(value = "path", required = false, defaultValue = "") path: String,
+        @RequestParam("name") name: String
+    ): String {
+        return createFileInternal(getBasePath(), path, name)
+    }
+
+    @PostMapping("/createFile")
+    fun createFilePost(
+        request: HttpRequest,
+        @RequestParam(value = "path", required = false, defaultValue = "") path: String,
+        @RequestParam("name") name: String
+    ): String {
+        return createFileInternal(getBasePath(), path, name)
+    }
+
+    private fun createFileInternal(basePath: String, path: String, name: String): String {
+        if (name.isBlank()) {
+            return "文件名不能为空"
+        }
+        val safeName = File(name).name
+        val dir = safePath(basePath, path)
+        val newFile = File(dir, safeName)
+        if (newFile.exists()) {
+            return "文件已存在"
+        }
+        return try {
+            if (newFile.createNewFile()) "创建成功" else "创建失败"
+        } catch (e: IOException) {
+            "创建失败: ${e.message}"
+        }
     }
 
     @GetMapping("/fileInfo")

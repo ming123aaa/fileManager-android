@@ -78,14 +78,14 @@ fun FileListItem(
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    
-                    IconButton(onClick = { onDownload() }) {
-                        Icon(
-                            imageVector = Icons.Default.Download,
-                            contentDescription = "Download",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                }
+
+                IconButton(onClick = { onDownload() }) {
+                    Icon(
+                        imageVector = Icons.Default.Download,
+                        contentDescription = "Download",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
                 
                 IconButton(onClick = { onRename() }) {

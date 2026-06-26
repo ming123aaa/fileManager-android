@@ -7,6 +7,7 @@ import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ohuang.filemanager.data.ApiService
+import com.ohuang.filemanager.data.AppDownloadManager
 import com.ohuang.filemanager.data.FileItem
 import com.ohuang.filemanager.util.SPUtil
 import com.ohuang.kthttp.call.awaitOrNull
@@ -87,6 +88,9 @@ class FileViewModel : ViewModel() {
 
     private val _showDownloadDialog = MutableStateFlow(false)
     val showDownloadDialog: StateFlow<Boolean> = _showDownloadDialog
+
+    private val _showCreateFileDialog = MutableStateFlow(false)
+    val showCreateFileDialog: StateFlow<Boolean> = _showCreateFileDialog
 
     // 多选模式相关状态
     private val _isMultiSelectMode = MutableStateFlow(false)
@@ -467,7 +471,7 @@ class FileViewModel : ViewModel() {
         viewModelScope.launch {
             val result = ApiService.writeText(fullPath, content).awaitOrNull { error ->
                 _isLoading.value = false
-                showToastMessage(error.message ?: "未知错误")
+                showToastMessage(error.toString() ?: "未知错误")
             }
 
             _isLoading.value = false
@@ -506,6 +510,41 @@ class FileViewModel : ViewModel() {
 
     fun hideMkdirDialog() {
         _showMkdirDialog.value = false
+    }
+
+    fun showCreateFileDialog() {
+        _showCreateFileDialog.value = true
+    }
+
+    fun hideCreateFileDialog() {
+        _showCreateFileDialog.value = false
+    }
+
+    fun createFile(name: String) {
+        if (_isLoading.value) {
+            return
+        }
+        _isLoading.value = true
+
+        viewModelScope.launch {
+            val result = ApiService.createFile(name, _currentPath.value).awaitOrNull { error ->
+                _isLoading.value = false
+                _showCreateFileDialog.value = false
+                showToastMessage(error.message ?: "未知错误")
+            }
+
+            _isLoading.value = false
+            _showCreateFileDialog.value = false
+
+            if (result != null) {
+                if (result.contains("成功")) {
+                    showToastMessage("文件创建成功")
+                    loadFiles(_currentPath.value)
+                } else {
+                    showToastMessage(result)
+                }
+            }
+        }
     }
 
     fun showRenameDialog(file: FileItem) {
@@ -926,56 +965,65 @@ class FileViewModel : ViewModel() {
     }
 
     /**
-     * 批量下载选中的文件
+     * 批量下载选中的文件和文件夹
      */
     fun downloadSelectedFiles(context: android.content.Context) {
         if (_selectedFiles.value.isEmpty()) {
             return
         }
 
-        val downloadManager = context.getSystemService(android.content.Context.DOWNLOAD_SERVICE)
-                as android.app.DownloadManager
-
-        var successCount = 0
         var skipCount = 0
-
         for (file in _selectedFiles.value) {
             if (file.isFolder) {
-                skipCount++
-                continue
-            }
-
-            try {
-                val url = getFileUrl(file)
-                val fileName = file.getFileName()
-
-                val request = android.app.DownloadManager.Request(android.net.Uri.parse(url)).apply {
-                    setTitle("下载 $fileName")
-                    setDescription("正在下载 $fileName")
-                    setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                    setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, fileName)
-                    setAllowedOverMetered(true)
-                    setAllowedOverRoaming(true)
+                val folderPath = getFullPath(file)
+                viewModelScope.launch {
+                    showLoadingDialog()
+                    AppDownloadManager.downloadFolder(folderPath, file.name)
+                    hideLoadingDialog()
                 }
 
-                downloadManager.enqueue(request)
-                successCount++
-            } catch (e: Exception) {
-                // 忽略单个文件下载失败
+            } else {
+                val fullPath = getFullPath(file)
+                val added = AppDownloadManager.downloadFile(fullPath, file.getFileName(), file.length)
+                if (!added) skipCount++
             }
         }
 
-        val message = when {
-            skipCount > 0 && successCount > 0 -> "已开始下载 $successCount 个文件，跳过 $skipCount 个文件夹"
-            skipCount > 0 -> "选中的都是文件夹，无法下载"
-            successCount > 0 -> "已开始下载 $successCount 个文件"
-            else -> "没有可下载的文件"
+        val addedCount = _selectedFiles.value.size - skipCount
+        if (skipCount > 0) {
+            showToastMessage("已添加 $addedCount 个下载任务，跳过 $skipCount 个重复文件")
+        } else {
+            showToastMessage("已添加 ${_selectedFiles.value.size} 个下载任务")
         }
-        showToastMessage(message)
 
         // 清空选中项并退出多选模式
         _selectedFiles.value = emptySet()
         _isMultiSelectMode.value = false
+    }
+
+    /**
+     * 下载单个文件或文件夹
+     */
+    fun downloadFileOrFolder(context: android.content.Context, file: FileItem) {
+        if (file.isFolder) {
+            val folderPath = getFullPath(file)
+            viewModelScope.launch {
+                showLoadingDialog()
+                AppDownloadManager.downloadFolder(folderPath, file.name)
+                showToastMessage("已添加文件夹下载任务")
+                hideLoadingDialog()
+            }
+
+
+        } else {
+            val fullPath = getFullPath(file)
+            val added = AppDownloadManager.downloadFile(fullPath, file.getFileName(), file.length)
+            if (added) {
+                showToastMessage("已开始下载: ${file.getFileName()}")
+            } else {
+                showToastMessage("文件已在下载列表中: ${file.getFileName()}")
+            }
+        }
     }
 }
 

@@ -237,6 +237,13 @@ fun PreviewCard(
                     }
                 )
                 DropdownMenuItem(
+                    text = { Text("下载") },
+                    onClick = { onDownload(file) },
+                    leadingIcon = {
+                        Icon(Icons.Default.Download, contentDescription = null)
+                    }
+                )
+                DropdownMenuItem(
                     text = { Text("复制链接") },
                     onClick = { onCopyLink(file) },
                     leadingIcon = {
