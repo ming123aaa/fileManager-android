@@ -30,7 +30,7 @@ fun rememberDeviceType(): DeviceType {
     val widthDp = configuration.screenWidthDp.dp
     val heightDp = configuration.screenHeightDp.dp
     return remember(widthDp, heightDp) {
-        if (widthDp >= 600.dp) DeviceType.TABLET else DeviceType.PHONE
+        if (widthDp >= 720.dp) DeviceType.TABLET else DeviceType.PHONE
     }
 }
 
@@ -41,7 +41,7 @@ fun rememberSettingScreenWidth(): Dp {
     val configuration = LocalConfiguration.current
     val widthDp = configuration.screenWidthDp
     return remember(widthDp) {
-        var value = max(300, (widthDp * 0.3).toInt())
+        var value = max(320, (widthDp * 0.3).toInt())
         value = min(400, value)
         value.dp
     }

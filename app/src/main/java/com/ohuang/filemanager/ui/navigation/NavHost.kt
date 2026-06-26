@@ -35,16 +35,15 @@ fun AppNavHost(onBack: () -> Unit = {}) {
 
     NavHost(
         navController = navController,
-        startDestination = "filemanager"
+        startDestination = "fileManager"
     ) {
-        composable("filemanager") {
+        composable("fileManager") {
        
             Row() {
 
                 val state = remember() { SnapshotStateMap<String,MutableTransitionState<Boolean>>().apply {
                     put("settings",MutableTransitionState<Boolean>(false))
-                    put("downloads",MutableTransitionState<Boolean>(false))
-                    put("",MutableTransitionState<Boolean>(false))
+                    put("",MutableTransitionState<Boolean>(true))
                 } }
                 LaunchedEffect(showScreenName) {
                     state.forEach { entry ->
@@ -70,11 +69,7 @@ fun AppNavHost(onBack: () -> Unit = {}) {
                             navController.navigate("settings")
                         }
                     }, goDownload = {
-                        if (deviceType == DeviceType.TABLET) {
-                            showScreenName = "downloads"
-                        } else {
                             navController.navigate("downloads")
-                        }
                     })
                     BackHandler(showScreenName.isNotEmpty()) {
                         showScreenName = ""
@@ -90,11 +85,7 @@ fun AppNavHost(onBack: () -> Unit = {}) {
                             SettingsScreen(navController, onBack = { showScreenName = "" })
                         }
                     }
-                    AnimatedVisibility(state["downloads"]!!) {
-                        Box(modifier = Modifier.width(settingWidth)) {
-                            DownloadScreen(navController, onBack = { showScreenName = "" })
-                        }
-                    }
+
                 }
             }
 

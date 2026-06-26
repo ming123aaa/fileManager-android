@@ -37,7 +37,7 @@ fun CreateFolderDialog(
     var folderName by remember { mutableStateOf("") }
 
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {},
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Card(
@@ -112,7 +112,7 @@ fun CreateFileDialog(
     var fileName by remember { mutableStateOf("") }
 
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {},
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Card(
@@ -188,7 +188,7 @@ fun RenameDialog(
     var newName by remember { mutableStateOf(file.getFileName()) }
 
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {},
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Card(
@@ -269,7 +269,7 @@ fun DeleteDialog(
     if (!show || file == null) return
 
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {},
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Card(
@@ -345,7 +345,7 @@ fun MoveDialog(
     if (!show || file == null) return
 
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {},
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Card(
@@ -559,15 +559,11 @@ fun EditDialog(
     val focusManager = LocalFocusManager.current
 
     Dialog(
-        onDismissRequest = {
-            keyboardController?.hide()
-            focusManager.clearFocus()
-            onDismiss()
-        },
+        onDismissRequest = {},
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
-            dismissOnBackPress = true,
-            dismissOnClickOutside = true,
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false,
             decorFitsSystemWindows = false // 允许 Dialog 处理系统窗口 insets
         )
     ) {
@@ -694,7 +690,7 @@ fun DownloadDialog(
     if (!show || file == null) return
 
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {},
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Card(
@@ -846,7 +842,7 @@ fun BatchDeleteDialog(
     val fileCount = selectedFiles.count { !it.isFolder }
 
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {},
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Card(
@@ -925,7 +921,7 @@ fun BatchMoveDialog(
     if (!show || selectedFiles.isEmpty()) return
 
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {},
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Card(
@@ -1041,7 +1037,7 @@ fun BatchDownloadDialog(
     val fileCount = selectedFiles.count { !it.isFolder }
 
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {},
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Card(

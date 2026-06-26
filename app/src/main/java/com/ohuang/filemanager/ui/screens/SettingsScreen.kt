@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Dry
@@ -126,7 +127,8 @@ private fun ServiceUrlSetting(context: Context) {
     Column {
 
         val serverUrl = remember { mutableStateOf(HttpConfig.getBaseUrl()) }
-        val isSaving = remember { mutableStateOf(false) }
+
+        var isTipSave by remember { mutableStateOf(false) }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -142,27 +144,52 @@ private fun ServiceUrlSetting(context: Context) {
             IconButton(
                 onClick = {
                     if (serverUrl.value.isNotEmpty()) {
-                        isSaving.value = true
+
                         HttpConfig.saveBaseUrl(context, serverUrl.value)
-                        isSaving.value = false
+                        serverUrl.value = HttpConfig.getBaseUrl()
+                        isTipSave = HttpConfig.getBaseUrl() != serverUrl.value
+
 
                     }
                 },
-                enabled = !isSaving.value && serverUrl.value.isNotEmpty()
+                enabled = isTipSave && serverUrl.value.isNotEmpty()
             ) {
                 Icon(
                     imageVector = Icons.Default.Save,
                     contentDescription = "Save"
                 )
             }
+            if (isTipSave && serverUrl.value.isNotEmpty()) {
+                Text(
+                    "地址需保存后生效", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
         }
         OutlinedTextField(
             value = serverUrl.value,
-            onValueChange = { serverUrl.value = it },
+            onValueChange = {
+                serverUrl.value = it
+                isTipSave = (serverUrl.value != HttpConfig.getBaseUrl())
+            },
             label = { Text("服务器地址") },
             placeholder = { Text("http://localhost:8080") },
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true
+            singleLine = true,
+            trailingIcon = {
+                if (serverUrl.value.isNotEmpty()) {
+                    IconButton(onClick = {
+                        serverUrl.value = ""
+                        isTipSave = false
+                    }) {
+                        Icon(
+                            imageVector = Icons.Default.Clear,
+                            contentDescription = "清除",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -181,18 +208,24 @@ private fun ServiceUrlSetting(context: Context) {
             Button(onClick = {
                 coroutineScope.launch {
                     testMsg = "正在测试中..."
-                    var data = ApiService.testConnect(serverUrl.value).awaitOrNull {
-                        testMsg = it.message ?: "请求失败"
+                    if (serverUrl.value.startsWith("http://")||serverUrl.value.startsWith("https://")){
+                        val data = ApiService.testConnect(serverUrl.value).awaitOrNull {
+                            testMsg ="网络异常-"+ it.message
+                        }
+                        if (data != null) {
+                            testMsg = "测试结果-$data"
+                        }
+                    }else{
+                        testMsg = "请输入正确的地址"
                     }
-                    if (data != null) {
-                        testMsg = data
-                    }
+
                 }
             }) {
-                Text("测试地址")
+                Text("测试网络")
             }
 
-            Text("测试结果:${testMsg}", modifier = Modifier.padding(horizontal = 5.dp))
+            Text(testMsg, modifier = Modifier.padding(horizontal = 5.dp),     style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error)
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -402,12 +435,12 @@ private fun AboutContent(context: Context) {
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.error
             )
-            ) {
+        ) {
             Icon(
                 imageVector = Icons.Default.CleaningServices,
                 contentDescription = null,
                 modifier = Modifier.size(20.dp),
-                )
+            )
             Spacer(modifier = Modifier.width(8.dp))
             Text("清空内部文件")
         }

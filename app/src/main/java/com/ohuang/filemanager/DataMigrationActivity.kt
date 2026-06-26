@@ -163,7 +163,7 @@ class DataMigrationActivity : ComponentActivity() {
                 val canGoBack = currentDir.absolutePath != baseLocalFilePath
 
                 androidx.compose.material3.AlertDialog(
-                    onDismissRequest = { showFolderDialog = false },
+                    onDismissRequest = {},
                     title = {
                         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                             if (canGoBack) {

@@ -20,6 +20,9 @@ object HttpConfig {
         if(mUrl.endsWith("/")){
             url=mUrl.substring(0,mUrl.length-1)
         }
+        if (!(mUrl.startsWith("http://")||mUrl.startsWith("https://"))){
+            url= "http://$mUrl"
+        }
         SPUtil.put(context, "server_url", url)
         baseUrl = url
         Toast.makeText(context, "保存服务器配置成功", Toast.LENGTH_SHORT).show()

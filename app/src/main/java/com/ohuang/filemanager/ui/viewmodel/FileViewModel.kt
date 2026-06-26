@@ -139,24 +139,25 @@ class FileViewModel : ViewModel() {
     private var allFiles: List<FileItem> = emptyList()
 
 
-    private var mLazyGridStateMap: SnapshotStateMap<String, LazyGridState> = mutableStateMapOf("" to LazyGridState())
+    private var mLazyGridStateMap: SnapshotStateMap<String, LazyGridState> =
+        mutableStateMapOf("" to LazyGridState())
 
     init {
         loadFiles()
     }
 
 
-
     fun getLazyGridState(): LazyGridState {
-        val path=_currentPath.value
-        val lazyGridState= if (mLazyGridStateMap.contains(path)){
+        val path = _currentPath.value
+        val lazyGridState = if (mLazyGridStateMap.contains(path)) {
             mLazyGridStateMap[path]!!
-        }else{
+        } else {
             LazyGridState().apply {
-                mLazyGridStateMap[path]=this@apply
+                mLazyGridStateMap[path] = this@apply
             }
         }
-        val removeKeys=mLazyGridStateMap.filterKeys {  it.isNotBlank()&&!path.startsWith(it) }.map { it.key }
+        val removeKeys =
+            mLazyGridStateMap.filterKeys { it.isNotBlank() && !path.startsWith(it) }.map { it.key }
         removeKeys.forEach {
             mLazyGridStateMap.remove(it)
         }
@@ -188,8 +189,8 @@ class FileViewModel : ViewModel() {
         return data != null
     }
 
-    suspend fun refreshFiles(){
-        if (requestFiles(_currentPath.value)){
+    suspend fun refreshFiles() {
+        if (requestFiles(_currentPath.value)) {
             showToastMessage("刷新完成")
         }
     }
@@ -220,7 +221,11 @@ class FileViewModel : ViewModel() {
             comparator
         }
         // 文件夹最先，文件在后
-        filtered = filtered.sortedWith(compareByDescending<FileItem> { it.isFolder }.then(directionComparator))
+        filtered = filtered.sortedWith(
+            compareByDescending<FileItem> { it.isFolder }.then(
+                directionComparator
+            )
+        )
 
         _files.value = filtered
     }
@@ -264,8 +269,14 @@ class FileViewModel : ViewModel() {
     fun loadSortState(context: Context) {
         val savedSortBy = SPUtil.get(context, "fm_sortBy", "NAME") as String
         val savedSortDir = SPUtil.get(context, "fm_sortDir", "ASC") as String
-        try { _sortBy.value = SortBy.valueOf(savedSortBy) } catch (_: Exception) {}
-        try { _sortDirection.value = SortDirection.valueOf(savedSortDir) } catch (_: Exception) {}
+        try {
+            _sortBy.value = SortBy.valueOf(savedSortBy)
+        } catch (_: Exception) {
+        }
+        try {
+            _sortDirection.value = SortDirection.valueOf(savedSortDir)
+        } catch (_: Exception) {
+        }
         applyFilters()
     }
 
@@ -288,11 +299,14 @@ class FileViewModel : ViewModel() {
      */
     fun loadViewModeState(context: Context) {
         val savedViewMode = SPUtil.get(context, "fm_viewMode", "GRID") as String
-        try { _viewMode.value = ViewMode.valueOf(savedViewMode) } catch (_: Exception) {}
+        try {
+            _viewMode.value = ViewMode.valueOf(savedViewMode)
+        } catch (_: Exception) {
+        }
     }
 
     fun createFolder(name: String) {
-        if (_isLoading.value){
+        if (_isLoading.value) {
             return
         }
         _isLoading.value = true
@@ -319,7 +333,7 @@ class FileViewModel : ViewModel() {
     }
 
     fun renameFile(file: FileItem, newName: String) {
-        if (_isLoading.value){
+        if (_isLoading.value) {
             return
         }
         _isLoading.value = true
@@ -349,7 +363,7 @@ class FileViewModel : ViewModel() {
     }
 
     fun deleteFile(file: FileItem) {
-        if (_isLoading.value){
+        if (_isLoading.value) {
             return
         }
         _isLoading.value = true
@@ -379,7 +393,7 @@ class FileViewModel : ViewModel() {
     }
 
     fun moveFile(file: FileItem, targetPath: String) {
-        if (_isLoading.value){
+        if (_isLoading.value) {
             return
         }
         _isLoading.value = true
@@ -408,12 +422,12 @@ class FileViewModel : ViewModel() {
         }
     }
 
-    suspend fun downloadFileInfo(file: FileItem): FileInfo?{
-        val fileUrl=getFileUrl(file)
-        val fileInfo= withTimeoutOrNull(1000){
+    suspend fun downloadFileInfo(file: FileItem): FileInfo? {
+        val fileUrl = getFileUrl(file)
+        val fileInfo = withTimeoutOrNull(1000) {
             ApiService.checkDownloadPath(fileUrl).awaitOrNull()
         }
-        return  fileInfo
+        return fileInfo
     }
 
     fun readFileContent(file: FileItem) {
@@ -422,22 +436,21 @@ class FileViewModel : ViewModel() {
 
         viewModelScope.launch {
 
-            val job=launch {
+            val job = launch {
                 delay(100)
                 showLoadingDialog()
             }
 
 
-
-            val fileInfo=downloadFileInfo(file)
-            if (fileInfo==null){
+            val fileInfo = downloadFileInfo(file)
+            if (fileInfo == null) {
                 showToastMessage("获取文件信息失败")
                 job.cancel()
                 hideLoadingDialog()
                 return@launch
             }
 
-            if (file.isWithinTextEditorLimit(fileInfo.contentLength)){
+            if (file.isWithinTextEditorLimit(fileInfo.contentLength)) {
                 showToastMessage("文件过大,请下载后编辑")
                 job.cancel()
                 hideLoadingDialog()
@@ -460,10 +473,10 @@ class FileViewModel : ViewModel() {
     }
 
     fun saveFileContent(file: FileItem, content: String) {
-        if (_isLoading.value){
+        if (_isLoading.value) {
             return
         }
-      
+
         _isLoading.value = true
 
         val fullPath = getFullPath(file)
@@ -594,17 +607,12 @@ class FileViewModel : ViewModel() {
             if (dirPath.isEmpty()) {
                 // 根目录
                 val rootNode = FolderTreeNode(
-                    path = "",
-                    name = "根目录",
-                    isExpanded = true,
-                    children = folders.map { f ->
+                    path = "", name = "根目录", isExpanded = true, children = folders.map { f ->
                         val fullPath = f.name
                         FolderTreeNode(
-                            path = fullPath,
-                            name = f.name
+                            path = fullPath, name = f.name
                         )
-                    }
-                )
+                    })
                 _folderTree.value = listOf(rootNode)
             } else {
                 // 非根目录，更新对应节点的子节点
@@ -639,13 +647,12 @@ class FileViewModel : ViewModel() {
                         isLoading = false,
                         hasSubfolders = folders.isNotEmpty(),
                         children = folders.map { f ->
-                            val fullPath = if (node.path.isEmpty()) f.name else "${node.path}/${f.name}"
+                            val fullPath =
+                                if (node.path.isEmpty()) f.name else "${node.path}/${f.name}"
                             FolderTreeNode(
-                                path = fullPath,
-                                name = f.name
+                                path = fullPath, name = f.name
                             )
-                        }
-                    )
+                        })
                 }
                 _folderTree.value = updatedTree.toList()
             }
@@ -679,26 +686,21 @@ class FileViewModel : ViewModel() {
         val currentTree = _folderTree.value.toMutableList()
         updateNodeInTree(currentTree, dirPath) { existingNode ->
             existingNode.copy(
-                hasSubfolders = folders.isNotEmpty(),
-                children = folders.map { f ->
+                hasSubfolders = folders.isNotEmpty(), children = folders.map { f ->
                     val fullPath = if (dirPath.isEmpty()) f.name else "$dirPath/${f.name}"
                     FolderTreeNode(
-                        path = fullPath,
-                        name = f.name
+                        path = fullPath, name = f.name
                     )
-                }
-            )
+                })
         }
         _folderTree.value = currentTree.toList()
     }
 
 
-
-
     fun showDownloadDialog(file: FileItem) {
         viewModelScope.launch {
-            val fileInfo=downloadFileInfo(file)
-            if (fileInfo==null){
+            val fileInfo = downloadFileInfo(file)
+            if (fileInfo == null) {
                 showToastMessage("获取文件信息失败")
                 _isLoading.value = false
                 return@launch
@@ -736,6 +738,7 @@ class FileViewModel : ViewModel() {
             _showToast.value = null
         }
     }
+
     fun hideToastMessage() {
         _showToast.value = null
     }
@@ -745,7 +748,7 @@ class FileViewModel : ViewModel() {
         else "${_currentPath.value}/${file.name}"
     }
 
-     fun getFileUrl( file: FileItem): String {
+    fun getFileUrl(file: FileItem): String {
         val fullPath = getFullPath(file)
         return ApiService.getDownloadPath(fullPath, file.isFolder)
     }
@@ -976,15 +979,14 @@ class FileViewModel : ViewModel() {
         for (file in _selectedFiles.value) {
             if (file.isFolder) {
                 val folderPath = getFullPath(file)
-                viewModelScope.launch {
-                    showLoadingDialog()
-                    AppDownloadManager.downloadFolder(folderPath, file.name)
-                    hideLoadingDialog()
-                }
+
+                val added = AppDownloadManager.downloadFolder(folderPath, file.name)
+                if (!added) skipCount++
 
             } else {
                 val fullPath = getFullPath(file)
-                val added = AppDownloadManager.downloadFile(fullPath, file.getFileName(), file.length)
+                val added =
+                    AppDownloadManager.downloadFile(fullPath, file.getFileName(), file.length)
                 if (!added) skipCount++
             }
         }
@@ -1007,13 +1009,13 @@ class FileViewModel : ViewModel() {
     fun downloadFileOrFolder(context: android.content.Context, file: FileItem) {
         if (file.isFolder) {
             val folderPath = getFullPath(file)
-            viewModelScope.launch {
-                showLoadingDialog()
-                AppDownloadManager.downloadFolder(folderPath, file.name)
-                showToastMessage("已添加文件夹下载任务")
-                hideLoadingDialog()
-            }
 
+            val added = AppDownloadManager.downloadFolder(folderPath, file.name)
+            if (added) {
+                showToastMessage("已开始下载: ${file.getFileName()}")
+            } else {
+                showToastMessage("文件已在下载列表中: ${file.getFileName()}")
+            }
 
         } else {
             val fullPath = getFullPath(file)

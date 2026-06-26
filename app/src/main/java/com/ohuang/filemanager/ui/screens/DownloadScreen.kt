@@ -1,5 +1,6 @@
 package com.ohuang.filemanager.ui.screens
 
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -23,6 +24,9 @@ import androidx.navigation.NavController
 import com.ohuang.filemanager.data.AppDownloadManager
 import com.ohuang.filemanager.data.DownloadTask
 
+import com.ohuang.kthttp.call.awaitOrNull
+import kotlinx.coroutines.launch
+
 private enum class DownloadFilter(val label: String) {
     ALL("全部"),
     DOWNLOADING("下载中"),
@@ -43,6 +47,17 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
     val selectedTaskIds = remember { mutableStateListOf<Long>() }
     var isSelectionMode by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    var showDeleteSingleConfirmDialog by remember { mutableStateOf(false) }
+    var taskToDelete by remember { mutableStateOf<DownloadTask?>(null) }
+    var showNewDownloadDialog by remember { mutableStateOf(false) }
+    var showDownloadConfirmDialog by remember { mutableStateOf(false) }
+    var pendingUrl by remember { mutableStateOf("") }
+    var pendingFileName by remember { mutableStateOf("") }
+    var pendingFileSize by remember { mutableStateOf(0L) }
+    var isLoadingFileInfo by remember { mutableStateOf(false) }
+
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     // 筛选：仅 sortedTasks 或 selectedFilter 变化时重算
     val filteredTasks = tasks.filter {
@@ -94,7 +109,7 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
                     if (isSelectionMode) {
                         Text("已选 ${selectedTaskIds.size} 项")
                     } else {
-                        Text("下载列表")
+                        Text("下载")
                     }
                 },
                 navigationIcon = {
@@ -109,7 +124,17 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
                 },
                 actions = {
                     if (isSelectionMode) {
-                        // 多选模式：全选 / 取消全选
+                        // 多选模式：退出多选
+                        IconButton(onClick = {
+                            selectedTaskIds.clear()
+                            isSelectionMode = false
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "退出多选"
+                            )
+                        }
+                        // 全选 / 取消全选
                         val allSelected = selectedTaskIds.containsAll(filteredTasks.map { it.id })
                         TextButton(onClick = {
                             val ids = filteredTasks.map { it.id }
@@ -137,6 +162,15 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
                         }
                     } else {
                         // 普通模式
+                        // 新建下载按钮
+                        IconButton(onClick = {
+                            showNewDownloadDialog = true
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = "新建下载"
+                            )
+                        }
 
                         if (isPaused) {
                             if (tasks.any { it.status == DownloadTask.Status.PAUSED }) {
@@ -147,7 +181,7 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
                                     )
                                 }
                             }
-                        }else {
+                        } else {
                             if (tasks.any { it.status == DownloadTask.Status.DOWNLOADING || it.status == DownloadTask.Status.WAITING }) {
                                 IconButton(onClick = { AppDownloadManager.pauseAll() }) {
                                     Icon(
@@ -155,7 +189,7 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
                                         contentDescription = "全部暂停"
                                     )
                                 }
-                            }else if (tasks.any { it.status == DownloadTask.Status.PAUSED }) {
+                            } else if (tasks.any { it.status == DownloadTask.Status.PAUSED }) {
                                 IconButton(onClick = { AppDownloadManager.resumeAll() }) {
                                     Icon(
                                         imageVector = Icons.Default.PlayCircle,
@@ -189,15 +223,24 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
                     .padding(horizontal = 16.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+
+
                 Text(
-                    text = "跳过已下载的内容",
+                    text = "下载目录:Download/fileManager",
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.weight(1f)
                 )
-                Switch(
-                    checked = isContinueDownload,
-                    onCheckedChange = { AppDownloadManager.setContinueDownload(it) }
+                Text(
+                    text = "强制覆盖文件:",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(horizontal = 5.dp)
+
                 )
+                Switch(
+                    checked = !isContinueDownload,
+                    onCheckedChange = { AppDownloadManager.setContinueDownload(!it) }
+                )
+
             }
 
             // 下载间隔设置
@@ -224,8 +267,8 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
                 Slider(
                     value = downloadInterval.toFloat(),
                     onValueChange = { AppDownloadManager.setDownloadInterval(it.toLong()) },
-                    valueRange = 0f..999f,
-                    steps = 998
+                    valueRange = 0f..1000f,
+                    steps = 99
                 )
             }
 
@@ -345,7 +388,10 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
                             onResume = { AppDownloadManager.resumeDownload(task.id) },
                             onCancel = { AppDownloadManager.cancelDownload(task.id) },
                             onRetry = { AppDownloadManager.retryDownload(task.id) },
-                            onRemove = { AppDownloadManager.removeTask(task.id) },
+                            onRemove = {
+                                taskToDelete = task
+                                showDeleteSingleConfirmDialog = true
+                            },
                         )
                     }
                 }
@@ -355,9 +401,9 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
 
     if (showDeleteConfirmDialog) {
         AlertDialog(
-            onDismissRequest = { showDeleteConfirmDialog = false },
+            onDismissRequest = {},
             title = { Text("确认删除") },
-            text = { Text("确定要删除选中的 ${selectedTaskIds.size} 个任务吗？此操作不可撤销。") },
+            text = { Text("确定要删除选中的 ${selectedTaskIds.size} 个任务吗？仅删除下载任务,文件不会被删除。") },
             confirmButton = {
                 TextButton(onClick = {
                     AppDownloadManager.clearTasks(selectedTaskIds.toList())
@@ -365,11 +411,198 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
                     isSelectionMode = false
                     showDeleteConfirmDialog = false
                 }) {
-                    Text("删除")
+                    Text("删除任务")
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirmDialog = false }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
+
+    // 单个删除确认弹窗
+    if (showDeleteSingleConfirmDialog && taskToDelete != null) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("确认删除") },
+            text = { Text("确定要删除「${taskToDelete!!.fileName}」下载任务吗？仅删除下载任务,文件不会被删除。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    AppDownloadManager.removeTask(taskToDelete!!.id)
+                    showDeleteSingleConfirmDialog = false
+                    taskToDelete = null
+                }) {
+                    Text("删除任务")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showDeleteSingleConfirmDialog = false
+                    taskToDelete = null
+                }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
+
+    // 新建下载 - URL输入弹窗
+    if (showNewDownloadDialog) {
+        var pathInput by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("新建下载") },
+            text = {
+                Column {
+                    Text(
+                        text = "文件下载地址:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = pathInput,
+                        onValueChange = { pathInput = it },
+                        label = { Text("文件下载地址") },
+                        placeholder = { Text("http://") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isLoadingFileInfo
+                    )
+                    if (isLoadingFileInfo) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("正在获取文件信息...", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val path = pathInput.trim()
+                        if (path.isNotEmpty() && (path.startsWith("http://") || path.startsWith("https://"))) {
+                            pendingUrl = path
+                            isLoadingFileInfo = true
+                            scope.launch {
+                                val downloadUrl = path
+                                val fileInfo =
+                                    com.ohuang.filemanager.data.ApiService.checkDownloadPath(
+                                        downloadUrl
+                                    ).awaitOrNull()
+                                isLoadingFileInfo = false
+                                if (fileInfo != null) {
+                                    val rawFileName = fileInfo.fileName?.ifEmpty {
+                                        path.substringAfterLast('/').ifEmpty { "未知文件" }
+                                    } ?: path.substringAfterLast('/').ifEmpty { "未知文件" }
+                                    pendingFileName = sanitizeFileName(rawFileName)
+                                    pendingFileSize = fileInfo.contentLength
+                                    showNewDownloadDialog = false
+                                    showDownloadConfirmDialog = true
+                                }
+                            }
+                        } else {
+                            Toast.makeText(context, "下载地址错误", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    enabled = pathInput.isNotBlank() && !isLoadingFileInfo
+                ) {
+                    Text("下一步")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showNewDownloadDialog = false
+                    pathInput = ""
+                }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
+
+    // 新建下载 - 确认弹窗（文件名可编辑）
+    if (showDownloadConfirmDialog) {
+        var editableFileName by remember { mutableStateOf(pendingFileName) }
+        var fileNameError by remember { mutableStateOf<String?>(null) }
+
+        fun validateFileName(name: String) {
+            fileNameError = isValidFileName(name)
+        }
+
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("确认下载") },
+            text = {
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "文件名：",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = editableFileName,
+                        onValueChange = {
+                            editableFileName = it
+                            validateFileName(it)
+                        },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        isError = fileNameError != null,
+                        supportingText = {
+                            if (fileNameError != null) {
+                                Text(fileNameError!!)
+                            }
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "文件大小：${formatFileSize(pendingFileSize)}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val isAdd = AppDownloadManager.downloadFile(
+                            serverPath = pendingUrl,
+                            fileName = editableFileName.trim(),
+                            totalSize = pendingFileSize
+                        )
+                        if (!isAdd) {
+                            Toast.makeText(context, "文件已在下载列表中", Toast.LENGTH_SHORT).show()
+                        }
+                        showDownloadConfirmDialog = false
+                        editableFileName = ""
+                        pendingUrl = ""
+                        pendingFileName = ""
+                        pendingFileSize = 0L
+                    },
+                    enabled = fileNameError == null
+                ) {
+                    Text("开始下载")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showDownloadConfirmDialog = false
+                    editableFileName = ""
+                }) {
                     Text("取消")
                 }
             }
@@ -453,17 +686,27 @@ private fun DownloadTaskItem(
                             DownloadTask.Status.WAITING -> "等待中"
                             DownloadTask.Status.DOWNLOADING -> {
                                 if (task.isFolder) {
+                                    val stringBuilder = StringBuilder()
                                     if (task.downloadedSize == 0L) {
-                                        "扫描文件中,已扫描${task.totalFiles}个文件"
+                                        val str="扫描文件中,已扫描${task.totalFiles}个文件 "
+                                        stringBuilder.append(str)
                                     } else {
-                                        "${task.completedFiles}/${task.totalFiles} 文件  ${task.formatDownloadedSize()} / ${task.formatTotalSize()}"
+                                        val str="${task.completedFiles}/${task.totalFiles} 文件  ${task.formatDownloadedSize()} / ${task.formatTotalSize()} "
+                                        stringBuilder.append(str)
                                     }
+
+
+                                    stringBuilder.toString()
                                 } else {
-                                    "${task.formatDownloadedSize()} / ${task.formatTotalSize()}"
+                                    val stringBuilder = StringBuilder("${task.formatDownloadedSize()} / ${task.formatTotalSize()}")
+
+
+                                    stringBuilder.toString()
                                 }
                             }
 
                             DownloadTask.Status.PAUSED -> {
+
                                 if (task.isFolder) "已暂停  ${task.completedFiles}/${task.totalFiles} 文件  ${task.formatDownloadedSize()} / ${task.formatTotalSize()}"
                                 else "已暂停  ${task.formatDownloadedSize()} / ${task.formatTotalSize()}"
                             }
@@ -580,4 +823,79 @@ private fun getMimeType(fileName: String): String {
         "apk" -> "application/vnd.android.package-archive"
         else -> "*/*"
     }
+}
+
+private fun formatFileSize(bytes: Long): String {
+    if (bytes <= 0) return "未知大小"
+    val units = arrayOf("B", "KB", "MB", "GB", "TB")
+    var size = bytes.toDouble()
+    var unitIndex = 0
+    while (size >= 1024 && unitIndex < units.size - 1) {
+        size /= 1024
+        unitIndex++
+    }
+    return if (unitIndex == 0) {
+        "$bytes ${units[unitIndex]}"
+    } else {
+        String.format("%.2f %s", size, units[unitIndex])
+    }
+}
+
+private fun isValidFileName(fileName: String): String? {
+    val trimmed = fileName.trim()
+
+    if (trimmed.isEmpty()) {
+        return "文件名不能为空"
+    }
+
+    if (trimmed == "." || trimmed == "..") {
+        return "文件名不能为 . 或 .."
+    }
+
+    val invalidChars = """[\\/:*?"<>|\x00-\x1F]""".toRegex()
+    if (invalidChars.containsMatchIn(trimmed)) {
+        return "文件名不能包含特殊字符: \\/:*?\"<>|"
+    }
+
+    val reservedNames = setOf(
+        "CON",
+        "PRN",
+        "AUX",
+        "NUL",
+        "COM1",
+        "COM2",
+        "COM3",
+        "COM4",
+        "COM5",
+        "COM6",
+        "COM7",
+        "COM8",
+        "COM9",
+        "LPT1",
+        "LPT2",
+        "LPT3",
+        "LPT4",
+        "LPT5",
+        "LPT6",
+        "LPT7",
+        "LPT8",
+        "LPT9"
+    )
+    if (reservedNames.contains(trimmed.uppercase())) {
+        return "文件名不能为系统保留名称"
+    }
+
+    return null
+}
+
+private fun sanitizeFileName(fileName: String): String {
+    // URL解码
+    val decoded = try {
+        java.net.URLDecoder.decode(fileName, "UTF-8")
+    } catch (e: Exception) {
+        fileName
+    }
+
+    // 将特殊字符替换为下划线
+    return decoded.replace(Regex("""[\\/:*?"<>|\x00-\x1F]"""), "_")
 }

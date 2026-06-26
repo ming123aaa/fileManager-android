@@ -7,6 +7,9 @@ let sortDir = 'asc';
 let filterMode = 'all'; // all: 全部, files: 仅文件, folders: 仅文件夹
 let currentEncoding = ''; // 当前编码，空表示自动检测
 let selectedFile = null;
+let selectedFiles = new Set(); // 多选文件集合
+let selectionMode = false; // 多选模式开关
+let lastSelectedIndex = -1; // 用于 Shift+Click 范围选择
 let contextTarget = null;
 let deleteTarget = null;
 let renameTarget = null;
@@ -246,6 +249,8 @@ function renderFiles() {
 
   if (viewMode === 'grid') {
     renderGridView(content);
+  } else if (viewMode === 'preview') {
+    renderPreviewView(content);
   } else {
     renderListView(content);
   }
@@ -253,13 +258,17 @@ function renderFiles() {
 
 function renderGridView(container) {
   let html = '<div class="file-grid">';
-  files.forEach(f => {
+  files.forEach((f, idx) => {
     const fi = getFileIcon(f.name, f.isFolder);
     const nameClass = f.isFolder ? ' folder-name' : '';
-    html += `<div class="file-card" 
-      onclick="${f.isFolder ? `navigateTo('${escapeHtml(currentPath ? currentPath + '/' + f.name : f.name)}')` : `previewOrOpenFile('${escapeHtml(f.name)}')`}"
+    const isSelected = selectedFiles.has(f.name);
+    const checkboxHtml = selectionMode ? `<input type="checkbox" class="file-checkbox" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation();toggleFileSelection('${escapeHtml(f.name)}', ${idx}, event)">` : '';
+    const clickHandler = selectionMode ? `handleFileClick('${escapeHtml(f.name)}', ${idx}, event)` : (f.isFolder ? `navigateTo('${escapeHtml(currentPath ? currentPath + '/' + f.name : f.name)}')` : `previewOrOpenFile('${escapeHtml(f.name)}')`);
+    html += `<div class="file-card ${isSelected ? 'selected' : ''}" 
+      onclick="${clickHandler}"
       oncontextmenu="showItemMenu(event,'${escapeHtml(f.name)}',${f.isFolder})"
-      data-name="${escapeHtml(f.name)}">
+      data-name="${escapeHtml(f.name)}" data-index="${idx}">
+      <div class="file-card-checkbox" style="visibility:${selectionMode ? 'visible' : 'hidden'}">${checkboxHtml}</div>
       <span class="material-icons file-icon" style="color:${fi.color}">${fi.icon}</span>
       <div class="file-name${nameClass}">${escapeHtml(f.name)}</div>
       <div class="file-meta">${f.isFolder ? '—' : formatSize(f.length)}</div>
@@ -270,18 +279,110 @@ function renderGridView(container) {
   container.innerHTML = html;
 }
 
+function renderPreviewView(container) {
+  let html = '<div class="file-preview-grid">';
+  files.forEach((f, idx) => {
+    const fi = getFileIcon(f.name, f.isFolder);
+    const nameClass = f.isFolder ? ' folder-name' : '';
+    const isSelected = selectedFiles.has(f.name);
+    const checkboxHtml = selectionMode ? `<input type="checkbox" class="file-checkbox" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation();toggleFileSelection('${escapeHtml(f.name)}', ${idx}, event)">` : '';
+    const clickHandler = selectionMode ? `handleFileClick('${escapeHtml(f.name)}', ${idx}, event)` : (f.isFolder ? `navigateTo('${escapeHtml(currentPath ? currentPath + '/' + f.name : f.name)}')` : `previewOrOpenFile('${escapeHtml(f.name)}')`);
+    
+    // 判断是否为图片或视频
+    const ext = f.name.split('.').pop().toLowerCase();
+    const isImage = ['jpg','jpeg','png','gif','bmp','webp','svg','ico'].includes(ext);
+    const isVideo = ['mp4','avi','mkv','mov','wmv','flv','webm','m4v'].includes(ext);
+    
+    let thumbnailHtml = '';
+    if (isImage) {
+      const filePath = currentPath ? currentPath + '/' + f.name : f.name;
+      thumbnailHtml = `<img class="preview-thumbnail lazy-media" data-src="/main/files/${encodeURIComponent(filePath).replace(/%2F/g, '/')}" alt="${escapeHtml(f.name)}" onerror="this.style.display='none'">`;
+    } else if (isVideo) {
+      const filePath = currentPath ? currentPath + '/' + f.name : f.name;
+      thumbnailHtml = `<div class="video-placeholder">
+        <span class="material-icons video-loading-icon">movie</span>
+        <video class="preview-thumbnail lazy-video" data-src="/main/files/${encodeURIComponent(filePath).replace(/%2F/g, '/')}" preload="metadata" muted onloadeddata="this.style.opacity='1';this.previousElementSibling.style.display='none'" onemptied="this.style.opacity='0';this.previousElementSibling.style.display='block'"></video>
+      </div>`;
+    }
+    
+    html += `<div class="file-preview-card ${isSelected ? 'selected' : ''}" 
+      onclick="${clickHandler}"
+      oncontextmenu="showItemMenu(event,'${escapeHtml(f.name)}',${f.isFolder})"
+      data-name="${escapeHtml(f.name)}" data-index="${idx}">
+      <div class="file-preview-checkbox" style="visibility:${selectionMode ? 'visible' : 'hidden'}">${checkboxHtml}</div>
+      <div class="preview-content">
+        ${thumbnailHtml || `<span class="material-icons preview-icon" style="color:${fi.color}">${fi.icon}</span>`}
+      </div>
+      <div class="file-name${nameClass}">${escapeHtml(f.name)}</div>
+      <div class="file-meta">${f.isFolder ? '—' : formatSize(f.length)}</div>
+      <div class="file-meta">${formatDate(f.lastModified)}</div>
+    </div>`;
+  });
+  html += '</div>';
+  container.innerHTML = html;
+  initLazyLoad();
+}
+
+// 懒加载初始化
+let lazyObserver = null;
+
+function initLazyLoad() {
+  // 懒加载观察器 - 进入可视区域时加载
+  if (!lazyObserver) {
+    lazyObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        const el = entry.target;
+        if (entry.isIntersecting) {
+          // 进入可视区域 - 加载媒体
+          const src = el.dataset.src;
+          if (src) {
+            el.src = src;
+            el.dataset.loaded = 'true';
+            delete el.dataset.src;
+          }
+        } else if (el.tagName === 'VIDEO') {
+          // 离开可视区域 - 仅卸载视频释放内存（图片保持加载）
+          if (el.dataset.loaded === 'true' && !el.classList.contains('playing')) {
+            const currentSrc = el.src;
+            if (currentSrc) {
+              el.dataset.src = currentSrc;
+              el.src = '';
+              el.dataset.loaded = 'false';
+              el.pause();
+              el.load();
+            }
+          }
+        }
+      });
+    }, { rootMargin: '200px' }); // 提前200px加载，延迟200px卸载
+  }
+  // 图片懒加载
+  document.querySelectorAll('.lazy-media[data-src]').forEach(el => {
+    lazyObserver.observe(el);
+  });
+  // 视频懒加载
+  document.querySelectorAll('.lazy-video[data-src]').forEach(el => {
+    lazyObserver.observe(el);
+  });
+}
+
 function renderListView(container) {
   let html = `<div class="file-list">
     <div class="file-list-header">
-      <span>名称</span><span>大小</span><span>修改时间</span><span style="text-align:right">操作</span>
+      <span class="list-checkbox-header" style="visibility:${selectionMode ? 'visible' : 'hidden'}"></span>
+      <span>名称</span><span>大小</span><span>修改时间</span><span style="text-align:center">操作</span>
     </div>`;
-  files.forEach(f => {
+  files.forEach((f, idx) => {
     const fi = getFileIcon(f.name, f.isFolder);
     const nameClass = f.isFolder ? ' folder-name' : '';
-    html += `<div class="file-list-row"
-      onclick="${f.isFolder ? `navigateTo('${escapeHtml(currentPath ? currentPath + '/' + f.name : f.name)}')` : `previewOrOpenFile('${escapeHtml(f.name)}')`}"
+    const isSelected = selectedFiles.has(f.name);
+    const checkboxHtml = selectionMode ? `<input type="checkbox" class="file-checkbox" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation();toggleFileSelection('${escapeHtml(f.name)}', ${idx}, event)">` : '';
+    const clickHandler = selectionMode ? `handleFileClick('${escapeHtml(f.name)}', ${idx}, event)` : (f.isFolder ? `navigateTo('${escapeHtml(currentPath ? currentPath + '/' + f.name : f.name)}')` : `previewOrOpenFile('${escapeHtml(f.name)}')`);
+    html += `<div class="file-list-row ${isSelected ? 'selected' : ''}"
+      onclick="${clickHandler}"
       oncontextmenu="showItemMenu(event,'${escapeHtml(f.name)}',${f.isFolder})"
-      data-name="${escapeHtml(f.name)}">
+      data-name="${escapeHtml(f.name)}" data-index="${idx}">
+      <div class="file-checkbox-cell" style="visibility:${selectionMode ? 'visible' : 'hidden'}">${checkboxHtml}</div>
       <div class="file-name-cell">
         <span class="material-icons" style="color:${fi.color}">${fi.icon}</span>
         <span class="file-name${nameClass}">${escapeHtml(f.name)}</span>
@@ -317,9 +418,105 @@ function selectFile(e, name) {
   });
 }
 
+function handleFileClick(name, idx, e) {
+  if (e.ctrlKey || e.metaKey) {
+    toggleFileSelection(name, idx, e);
+  } else if (e.shiftKey && lastSelectedIndex !== -1) {
+    e.preventDefault();
+    const start = Math.min(lastSelectedIndex, idx);
+    const end = Math.max(lastSelectedIndex, idx);
+    for (let i = start; i <= end; i++) {
+      selectedFiles.add(files[i].name);
+    }
+    lastSelectedIndex = idx;
+    updateSelectionUI();
+  } else if (selectionMode) {
+    // 多选模式下，普通点击也切换选中状态
+    toggleFileSelection(name, idx, e);
+  } else {
+    const f = files.find(f => f.name === name);
+    if (!f) return;
+    if (f.isFolder) {
+      navigateTo(currentPath ? currentPath + '/' + f.name : f.name);
+    } else {
+      previewOrOpenFile(f.name);
+    }
+  }
+}
+
+function toggleFileSelection(name, idx, e) {
+  if (e.shiftKey && lastSelectedIndex !== -1) {
+    // Shift+Click with checkbox
+    const start = Math.min(lastSelectedIndex, idx);
+    const end = Math.max(lastSelectedIndex, idx);
+    for (let i = start; i <= end; i++) {
+      selectedFiles.add(files[i].name);
+    }
+  } else {
+    // 切换单个文件的选择状态
+    if (selectedFiles.has(name)) {
+      selectedFiles.delete(name);
+    } else {
+      selectedFiles.add(name);
+    }
+  }
+  lastSelectedIndex = idx;
+  updateSelectionUI();
+}
+
+function updateSelectionUI() {
+  // 更新复选框状态
+  document.querySelectorAll('.file-card,.file-preview-card,.file-list-row').forEach(el => {
+    const isSelected = selectedFiles.has(el.dataset.name);
+    el.classList.toggle('selected', isSelected);
+    const checkbox = el.querySelector('.file-checkbox');
+    if (checkbox) checkbox.checked = isSelected;
+  });
+  
+  // 更新选择工具栏
+  const toolbar = document.getElementById('selectionToolbar');
+  const countEl = document.getElementById('selectionCount');
+  if (selectedFiles.size > 0) {
+    toolbar.style.display = 'flex';
+    countEl.textContent = `已选择 ${selectedFiles.size} 个项目`;
+  } else {
+    toolbar.style.display = 'none';
+  }
+}
+
+function selectAll() {
+  files.forEach(f => selectedFiles.add(f.name));
+  lastSelectedIndex = files.length - 1;
+  updateSelectionUI();
+}
+
+function toggleSelectionMode() {
+  selectionMode = !selectionMode;
+  const btn = document.getElementById('selectModeBtn');
+  btn.classList.toggle('active', selectionMode);
+  
+  if (!selectionMode) {
+    // 退出多选模式时清除选择
+    deselectAll();
+  }
+  
+  // 重新渲染文件以显示/隐藏复选框
+  renderFiles();
+}
+
+function deselectAll() {
+  selectedFiles.clear();
+  lastSelectedIndex = -1;
+  updateSelectionUI();
+}
+
 function setView(mode) {
   viewMode = mode;
   document.getElementById('viewGrid').classList.toggle('active', mode === 'grid');
+  const viewPreviewBtn = document.getElementById('viewPreview');
+  if (viewPreviewBtn) {
+    viewPreviewBtn.classList.toggle('active', mode === 'preview');
+  }
   document.getElementById('viewList').classList.toggle('active', mode === 'list');
   saveViewState();
   renderFiles();
@@ -472,7 +669,11 @@ function previewOrOpenFile(name) {
   const ft = getFileType(name);
   if (ft && (ft.type === 'text' || ft.type === 'code')) {
     previewPath = currentPath ? currentPath + '/' + name : name;
-    editFile();
+    if (isReadOnly) {
+      previewFile(name);
+    } else {
+      editFile();
+    }
     return;
   }
   if (ft && (ft.type === 'image' || ft.type === 'audio')) {
@@ -806,6 +1007,113 @@ function deleteItem() {
   }).catch(() => toast('删除失败', 'error'));
 }
 
+// 批量删除选中项
+function showDeleteSelectedModal() {
+  if (selectedFiles.size === 0) return;
+  const names = Array.from(selectedFiles);
+  const count = names.length;
+  
+  // 如果只选了一个，复用原来的单个删除弹窗
+  if (count === 1) {
+    const name = names[0];
+    const f = files.find(f => f.name === name);
+    if (f) showDeleteModal(name, f.isFolder);
+    return;
+  }
+  
+  // 多个选择时，显示确认弹窗
+  document.getElementById('deleteName').textContent = names.join(', ');
+  document.getElementById('deleteModal').classList.add('show');
+  // 修改删除按钮文字
+  const deleteBtn = document.querySelector('#deleteModal .btn-danger');
+  if (deleteBtn) {
+    deleteBtn.textContent = `删除 (${count})`;
+    deleteBtn.innerHTML = `<span class="material-icons" style="font-size:14px">delete</span>删除 (${count})`;
+  }
+  // 临时替换 deleteItem 函数
+  window._batchDelete = true;
+}
+
+function deleteSelectedItems() {
+  const names = Array.from(selectedFiles);
+  let completed = 0;
+  let successCount = 0;
+  
+  const deleteOne = (index) => {
+    if (index >= names.length) {
+      if (successCount > 0) {
+        toast(`成功删除 ${successCount} 个项目`);
+        deselectAll();
+        closeModal('deleteModal');
+        loadFiles();
+      }
+      return;
+    }
+    const name = names[index];
+    const path = currentPath ? currentPath + '/' + name : name;
+    apiPost('delete', {path: path}).then(result => {
+      if (result.includes('成功')) successCount++;
+      completed++;
+      deleteOne(index + 1);
+    }).catch(() => {
+      completed++;
+      deleteOne(index + 1);
+    });
+  };
+  
+  deleteOne(0);
+}
+
+// 批量移动选中项
+let moveSelectedTargets = [];
+
+function showMoveSelectedModal() {
+  if (selectedFiles.size === 0) return;
+  moveSelectedTargets = Array.from(selectedFiles);
+  
+  // 如果只选了一个，提示用户移动操作不支持多选（需先确认逻辑）
+  // 复用 moveModal，但修改提示信息
+  document.getElementById('moveSource').textContent = `已选择 ${moveSelectedTargets.length} 个项目`;
+  moveTargetPath = '';
+  loadFolderTree('');
+  document.getElementById('moveModal').classList.add('show');
+  // 修改移动按钮文字
+  const moveBtn = document.querySelector('#moveModal .btn-primary');
+  if (moveBtn) {
+    moveBtn.textContent = `移动 (${moveSelectedTargets.length})`;
+  }
+}
+
+function confirmMoveSelected() {
+  if (moveSelectedTargets.length === 0) return;
+  
+  let completed = 0;
+  let successCount = 0;
+  
+  const moveOne = (index) => {
+    if (index >= moveSelectedTargets.length) {
+      if (successCount > 0) {
+        toast(`成功移动 ${successCount} 个项目`);
+        deselectAll();
+        closeModal('moveModal');
+        loadFiles();
+      }
+      return;
+    }
+    const sourcePath = currentPath ? currentPath + '/' + moveSelectedTargets[index] : moveSelectedTargets[index];
+    apiPost('move', {path: sourcePath, targetDir: moveTargetPath}).then(result => {
+      if (result.includes('成功')) successCount++;
+      completed++;
+      moveOne(index + 1);
+    }).catch(() => {
+      completed++;
+      moveOne(index + 1);
+    });
+  };
+  
+  moveOne(0);
+}
+
 function showUploadModal() {
   document.getElementById('uploadProgress').innerHTML = '';
   document.getElementById('fileInput').value = '';
@@ -924,6 +1232,41 @@ function closeModal(id) {
   if (id === 'previewModal') {
     resetPreviewEncoding();
   }
+  if (id === 'deleteModal') {
+    // 重置删除弹窗状态
+    window._batchDelete = false;
+    const deleteBtn = document.querySelector('#deleteModal .btn-danger');
+    if (deleteBtn) {
+      deleteBtn.textContent = '删除';
+      deleteBtn.innerHTML = '<span class="material-icons" style="font-size:14px">delete</span>删除';
+    }
+  }
+  if (id === 'moveModal') {
+    // 重置移动弹窗状态
+    moveSelectedTargets = [];
+    const moveBtn = document.querySelector('#moveModal .btn-primary');
+    if (moveBtn) {
+      moveBtn.textContent = '移动';
+    }
+  }
+}
+
+// 处理删除按钮点击（支持单选和批量）
+function handleDelete() {
+  if (window._batchDelete || selectedFiles.size > 1) {
+    deleteSelectedItems();
+  } else {
+    deleteItem();
+  }
+}
+
+// 处理移动按钮点击（支持单选和批量）
+function handleMove() {
+  if (moveSelectedTargets.length > 1) {
+    confirmMoveSelected();
+  } else {
+    confirmMove();
+  }
 }
 
 document.addEventListener('keydown', e => {
@@ -945,22 +1288,28 @@ document.addEventListener('click', e => {
   if (!e.target.closest('.context-menu')) {
     hideMenu();
   }
-  if (!e.target.closest('.file-card,.file-list-row,.context-menu,.modal-overlay')) {
+  if (!e.target.closest('.file-card,.file-list-row,.context-menu,.modal-overlay,.selection-toolbar')) {
+    // 多选模式下，点击空白区域不取消选择
+    if (!selectionMode) {
+      deselectAll();
+    }
     selectedFile = null;
-    document.querySelectorAll('.file-card.selected,.file-list-row.selected').forEach(el => el.classList.remove('selected'));
   }
 });
 
 document.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT') return;
-  if (e.key === 'Delete' && selectedFile) {
+  if (e.key === 'Delete' && selectedFiles.size > 0) {
+    showDeleteSelectedModal();
+  } else if (e.key === 'Delete' && selectedFile) {
     const f = files.find(f => f.name === selectedFile);
     if (f) showDeleteModal(f.name, f.isFolder);
   }
-  if (e.key === 'F2' && selectedFile) {
-    showRenameModal(selectedFile);
+  if (e.key === 'F2' && selectedFiles.size === 1) {
+    const name = selectedFiles.values().next().value;
+    showRenameModal(name);
   }
-  if (e.key === 'Enter' && selectedFile) {
+  if (e.key === 'Enter' && selectedFiles.size === 0 && selectedFile) {
     const f = files.find(f => f.name === selectedFile);
     if (f && f.isFolder) {
       navigateTo(currentPath ? currentPath + '/' + f.name : f.name);
@@ -970,6 +1319,15 @@ document.addEventListener('keydown', e => {
   }
   if (e.key === 'Backspace' && !e.target.tagName === 'INPUT') {
     goUp();
+  }
+  // Ctrl+A: 全选
+  if ((e.ctrlKey || e.metaKey) && e.key === 'a' && selectedFiles.size === 0) {
+    e.preventDefault();
+    selectAll();
+  }
+  // Escape: 取消选择
+  if (e.key === 'Escape') {
+    deselectAll();
   }
 });
 
@@ -983,6 +1341,10 @@ function goUp() {
 loadState();
 // 恢复 UI 状态
 document.getElementById('viewGrid').classList.toggle('active', viewMode === 'grid');
+const viewPreviewBtn = document.getElementById('viewPreview');
+if (viewPreviewBtn) {
+  viewPreviewBtn.classList.toggle('active', viewMode === 'preview');
+}
 document.getElementById('viewList').classList.toggle('active', viewMode === 'list');
 document.getElementById('sortSelect').value = sortBy + '-' + sortDir;
 document.querySelectorAll('.filter-btn').forEach(btn => {

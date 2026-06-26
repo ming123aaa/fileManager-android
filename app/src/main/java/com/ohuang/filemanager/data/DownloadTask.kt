@@ -4,17 +4,18 @@ import java.io.File
 
 data class DownloadTask(
     val incrementID: Long= createIncrementId(),
-    val fileName: String,
-    val serverPath: String,
-    val localFile: File,
-    val totalSize: Long = 0L,
-    val downloadedSize: Long = 0L,
+    val fileName: String,//文件名
+    val serverPath: String,//服务端相对路径 或 http地址
+    val localFile: File,//文件保存的位置
+    val totalSize: Long = 0L, //总文件大小
+    val downloadedSize: Long = 0L, //已下载的文件大小
     val status: Status = Status.WAITING,
     val errorMessage: String? = null,
     val createTime: Long = System.currentTimeMillis(),
-    val isFolder: Boolean = false,
-    val completedFiles: Int = 0,
-    val totalFiles: Int = 0
+    val isFolder: Boolean = false, //是否是文件夹
+
+    val completedFiles: Int = 0,//已下载的文件数量
+    val totalFiles: Int = 0//总共的文件数量
 ) {
     val id: Long
         get() = incrementID

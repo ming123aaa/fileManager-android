@@ -134,6 +134,9 @@ object ApiService {
 
 
     fun getDownloadPath(fullPath: String, isFolder: Boolean = false): String {
+        if (fullPath.startsWith("http://")||fullPath.startsWith("https://")){
+            return fullPath
+        }
         val baseUrl = HttpConfig.getBaseUrl()
         val path =
             java.net.URLEncoder.encode(fullPath, "UTF-8").replace("%2F", "/").replace("+", "%20")

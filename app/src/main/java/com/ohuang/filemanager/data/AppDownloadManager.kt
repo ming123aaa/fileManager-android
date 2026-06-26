@@ -7,6 +7,7 @@ import com.ohuang.filemanager.server.util.AppContext
 import com.ohuang.filemanager.util.SPUtil
 import com.ohuang.kthttp.call.awaitOrNull
 import com.ohuang.kthttp.call.throwCancellationException
+import com.ohuang.kthttp.httpCallRetryOnFailure
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -44,16 +45,16 @@ object AppDownloadManager {
 
     /** 下载间隔 */
     private val _downloadInterval =
-        MutableStateFlow(SPUtil.get(AppContext.instance, "_downloadInterval", 100) as Long)
+        MutableStateFlow(SPUtil.get(AppContext.instance, "_downloadInterval", 50L) as Long)
     val downloadInterval: StateFlow<Long> = _downloadInterval
 
-    fun setDownloadInterval(time: Long){
-        var fTime=100L
-        if (time>=0&&time<1000){
-            fTime=time
+    fun setDownloadInterval(time: Long) {
+        var fTime = 50L
+        if (time >= 0 && time <= 1000) {
+            fTime = time
         }
         SPUtil.put(AppContext.instance, "_downloadInterval", fTime)
-        _downloadInterval.value=fTime
+        _downloadInterval.value = fTime
     }
 
     fun setContinueDownload(value: Boolean) {
@@ -129,9 +130,9 @@ object AppDownloadManager {
     fun downloadFolder(
         folderServerPath: String,
         folderName: String
-    ) {
+    ): Boolean {
         val exists = tasks.values.any { it.fileName == folderName }
-        if (exists) return
+        if (exists) return false
 
         val localDir = File(getDownloadDir(), folderName)
         val task = DownloadTask(
@@ -146,6 +147,7 @@ object AppDownloadManager {
         if (!_isPaused.value) {
             pendingChannel.trySend(task.id)
         }
+        return true
     }
 
 
@@ -155,13 +157,20 @@ object AppDownloadManager {
     private suspend fun scanFolder(
         serverPath: String,
         localDir: File,
+        findFolderError: (serverPath: String) -> Boolean,
         fileCall: suspend (serverPath: String, file: File, size: Long) -> Unit
-    ) {
+    ): Boolean {
+        var isError = false
         coroutineScope {
 
-            val files = ApiService.getAllFiles(serverPath).awaitOrNull() ?: return@coroutineScope
+            val files = httpCallRetryOnFailure(time = 100) { ApiService.getAllFiles(serverPath) }
+            if (files == null) {
+                isError = findFolderError(serverPath)
+                return@coroutineScope
+
+            }
             for (item in files) {
-                delay(_downloadInterval.value)
+
                 if (!isActive) {
                     return@coroutineScope
                 }
@@ -171,8 +180,15 @@ object AppDownloadManager {
                 if (item.isFolder) {
                     val subDir = File(localDir, item.name)
                     if (!subDir.exists()) subDir.mkdirs()
+                    delay(_downloadInterval.value)
+                    if (!isActive) {
+                        return@coroutineScope
+                    }
 
-                    scanFolder(itemServerPath, subDir, fileCall)
+                    isError = scanFolder(itemServerPath, subDir, findFolderError, fileCall)
+                    if (isError) {
+                        return@coroutineScope
+                    }
                 } else {
                     val file = File(localDir, item.name)
 
@@ -181,7 +197,7 @@ object AppDownloadManager {
             }
 
         }
-
+        return isError
     }
 
     /**
@@ -197,10 +213,10 @@ object AppDownloadManager {
 
 
         val job = scope.launch {
-                
+
             try {
-                
-                delay(_downloadInterval.value)
+
+
                 val task = tasks[taskId] ?: return@launch
 
                 if (task.isFolder) {
@@ -223,8 +239,6 @@ object AppDownloadManager {
                 }
             } finally {
                 activeJobs.remove(taskId)
-
-
             }
         }
         activeJobs[taskId] = job
@@ -242,15 +256,16 @@ object AppDownloadManager {
         val isDownloaded: Boolean = synchronized(lock = downloadingFiles) {
             if (downloadingFiles.contains(file.absolutePath)) {  //如果当前文件已在下载队列
                 error("文件已在下载队列了")
-
                 true
             } else {
                 downloadingFiles.add(file.absolutePath)
                 false
             }
         }
+
         if (isDownloaded) return null
         try {
+            delay(_downloadInterval.value)
             return ApiService.download(
                 url = url,
                 file = file,
@@ -274,13 +289,21 @@ object AppDownloadManager {
     private suspend fun doDownloadFile(taskId: Long, task: DownloadTask) {
         coroutineScope {
             var totalSize = task.totalSize
+            val url = if (task.serverPath.startsWith("http://")
+                || task.serverPath.startsWith("https://")
+            ) {
+                task.serverPath
+            } else {
+                ApiService.getDownloadPath(task.serverPath, false)
+            }
+
             if (totalSize <= 0) {
-                val url = ApiService.getDownloadPath(task.serverPath, false)
+
                 val fileInfo = ApiService.checkDownloadPath(url).awaitOrNull()
                 totalSize = fileInfo?.contentLength ?: 0L
             }
 
-            val url = ApiService.getDownloadPath(task.serverPath, false)
+
             var lastUpdateTime = 0L
 
             var msg: String = "下载失败"
@@ -330,26 +353,47 @@ object AppDownloadManager {
 
             val fileInfos = LinkedList<Triple<String, File, Long>>()
             var totalSize: Long = 0
-            val lastUpdateTime: Long = 0
+            var lastUpdateTime: Long = 0
+
 
             // 扫描文件夹获取所有文件
-            scanFolder(
+            val isError=scanFolder(
                 task.serverPath,
-                task.localFile
+                task.localFile, { errorFolder->
+
+                    updateTask(taskId) {
+                        it.copy(
+                            status = DownloadTask.Status.FAILED,
+                            totalFiles = fileInfos.size,
+                            totalSize = totalSize,
+                            errorMessage = "获取文件夹失败  dirPath = $errorFolder",
+                            downloadedSize = 0,
+                            completedFiles = 0,
+                        )
+                    }
+                    return@scanFolder true
+
+
+                }
             ) { serverPath: String, file: File, size: Long ->
                 fileInfos.add(Triple<String, File, Long>(serverPath, file, size))
                 totalSize += size
                 val now = System.currentTimeMillis()
                 if (now - lastUpdateTime >= 500) {
+                    lastUpdateTime = System.currentTimeMillis()
                     updateTask(taskId) {
                         it.copy(
                             totalFiles = fileInfos.size,
                             totalSize = totalSize,
+
                             downloadedSize = 0,
                             completedFiles = 0,
                         )
                     }
                 }
+            }
+            if (isError){
+                return@coroutineScope
             }
             if (!isActive) {
                 updateTaskIf(taskId, { true }) {
@@ -357,6 +401,7 @@ object AppDownloadManager {
                         status = DownloadTask.Status.PAUSED,
                         totalFiles = fileInfos.size,
                         totalSize = totalSize,
+
                         completedFiles = 0, downloadedSize = 0,
 
                         )
@@ -368,6 +413,7 @@ object AppDownloadManager {
                         status = DownloadTask.Status.COMPLETED,
                         totalFiles = fileInfos.size,
                         totalSize = totalSize,
+
                         completedFiles = 0, downloadedSize = 0,
 
                         )
@@ -401,7 +447,7 @@ object AppDownloadManager {
                 localFile.parentFile?.let { if (!it.exists()) it.mkdirs() }
 
                 val url = ApiService.getDownloadPath(serverPath, false)
-                var lastUpdateTime = 0L
+
                 var msg: String = "下载失败"
                 val result = download(
                     url = url,
@@ -413,7 +459,7 @@ object AppDownloadManager {
                     if (now - lastUpdateTime >= 500) {
                         lastUpdateTime = now
                         updateTask(taskId) {
-                            it.copy(downloadedSize = downloadedBytes + current)
+                            it.copy(downloadedSize = downloadedBytes + current,completedFiles = completedFiles)
                         }
                     }
                 }
@@ -433,7 +479,7 @@ object AppDownloadManager {
                     updateTaskIf(taskId, { true }) {
                         it.copy(
                             status = DownloadTask.Status.FAILED,
-                            errorMessage = msg,
+                            errorMessage = "$msg url=$url",
                             downloadedSize = downloadedBytes,
                             completedFiles = completedFiles
                         )
@@ -443,8 +489,12 @@ object AppDownloadManager {
 
                 downloadedBytes += fileSize
                 completedFiles++
-                updateTask(taskId) {
-                    it.copy(downloadedSize = downloadedBytes, completedFiles = completedFiles)
+                val now = System.currentTimeMillis()
+                if (now - lastUpdateTime >= 500) {
+                    lastUpdateTime = now
+                    updateTask(taskId) {
+                        it.copy(downloadedSize = downloadedBytes, completedFiles = completedFiles)
+                    }
                 }
             }
 

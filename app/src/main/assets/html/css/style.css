@@ -218,6 +218,67 @@ body {
 .btn-sm .material-icons {
   font-size: 14px;
 }
+.btn-danger {
+  background: var(--danger);
+  color: white;
+}
+.btn-danger:hover {
+  background: #DC2626;
+}
+
+/* Selection Toolbar */
+.selection-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 12px;
+  border-right: 1px solid var(--border);
+  margin-right: 4px;
+}
+
+/* File Checkbox */
+.file-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--primary);
+}
+.file-card-checkbox {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 1;
+}
+.file-preview-checkbox {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 1;
+}
+.file-checkbox-cell {
+  display: flex;
+  align-items: center;
+}
+.file-list-header {
+  display: grid;
+  grid-template-columns: 40px 1fr 80px 160px 130px;
+  padding: 12px 16px;
+  background: var(--bg);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+}
+.file-list-row {
+  display: grid;
+  grid-template-columns: 40px 1fr 80px 160px 130px;
+  padding: 10px 16px;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: var(--transition);
+}
 
 /* Breadcrumb */
 .breadcrumb {
@@ -264,6 +325,7 @@ body {
   gap: 16px;
 }
 .file-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -311,30 +373,98 @@ body {
   width: 100%;
 }
 
+/* Preview Grid */
+.file-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}
+.file-preview-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px;
+  background: var(--white);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: var(--transition);
+  border: 2px solid transparent;
+  min-width: 0;
+  overflow: hidden;
+}
+.file-preview-card:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-2px);
+}
+.file-preview-card.selected {
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+.preview-content {
+  width: 100%;
+  height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+.video-placeholder {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.video-loading-icon {
+  font-size: 48px;
+  color: var(--text-light);
+  position: absolute;
+  z-index: 0;
+}
+.video-placeholder .lazy-video {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  position: relative;
+  z-index: 1;
+}
+.video-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.3);
+  cursor: pointer;
+  z-index: 2;
+}
+.video-overlay:hover {
+  background: rgba(0,0,0,0.4);
+}
+.preview-thumbnail {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.preview-thumbnail.video-lazy {
+  display: none;
+}
+.preview-icon {
+  font-size: 64px;
+}
+
 /* File List */
 .file-list {
   background: var(--white);
   border-radius: var(--radius);
   overflow: hidden;
-}
-.file-list-header {
-  display: grid;
-  grid-template-columns: 1fr 120px 160px 120px;
-  padding: 12px 16px;
-  background: var(--bg);
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  border-bottom: 1px solid var(--border);
-}
-.file-list-row {
-  display: grid;
-  grid-template-columns: 1fr 120px 160px 120px;
-  padding: 10px 16px;
-  align-items: center;
-  border-bottom: 1px solid var(--border);
-  cursor: pointer;
-  transition: var(--transition);
 }
 .file-list-row:hover {
   background: var(--bg);
@@ -359,9 +489,10 @@ body {
 }
 .file-actions-cell {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
-  gap: 4px;
+  justify-content: center;
+  gap: 2px;
 }
 
 /* Empty State */
@@ -879,8 +1010,11 @@ body {
     display: none;
   }
   .file-list-row {
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 40px 1fr auto;
     padding: 12px;
+  }
+  .file-checkbox-cell {
+    display: flex;
   }
   .file-size, .file-date {
     display: none;
