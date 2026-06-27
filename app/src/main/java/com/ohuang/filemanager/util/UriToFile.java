@@ -7,19 +7,61 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
+import android.os.ParcelFileDescriptor;
 import android.provider.DocumentsContract;
 import android.provider.MediaStore;
 import android.provider.OpenableColumns;
 import android.webkit.MimeTypeMap;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import java.io.File;
+import java.io.FileDescriptor;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 
 public class UriToFile {
+
+
+    static class FileDescriptorInputStream extends FileInputStream{
+
+
+        ParcelFileDescriptor parcelFileDescriptor;  // 为了引用这个对象,避免被系统回收
+
+        public FileDescriptorInputStream(ParcelFileDescriptor parcelFileDescriptor) {
+            super(parcelFileDescriptor.getFileDescriptor());
+            this.parcelFileDescriptor=parcelFileDescriptor;
+        }
+    }
+
+    public static FileInputStream uriToFileInputStream(Uri uri, Context context) {
+        FileInputStream fileInputStream = null;
+        try {
+            ParcelFileDescriptor r = context.getContentResolver().openFileDescriptor(uri, "r");
+            if (r != null) {
+                fileInputStream = new FileDescriptorInputStream(r);
+            }
+        } catch (Throwable e) {
+
+        }
+        if (fileInputStream == null) {
+            try {
+                File file = uriToFile(uri, context);
+                if (file != null) {
+                    fileInputStream = new FileInputStream(file);
+                }
+            } catch (FileNotFoundException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        return fileInputStream;
+    }
+
 
     /**
      * 统一的 URI 转 File 方法，兼容所有 Android 版本
@@ -27,7 +69,6 @@ public class UriToFile {
     @Nullable
     public static File uriToFile(Uri uri, Context context) {
         if (uri == null) return null;
-
         String scheme = uri.getScheme();
         if (scheme == null) return null;
 
@@ -108,8 +149,8 @@ public class UriToFile {
         }
     }
 
-    public static File copyChecheDir(Context context){
-        return  new File(context.getCacheDir(), "upload_cache");
+    public static File copyChecheDir(Context context) {
+        return new File(context.getCacheDir(), "upload_cache");
     }
 
     /**

@@ -7,6 +7,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -26,6 +27,7 @@ import com.ohuang.filemanager.data.DownloadTask
 
 import com.ohuang.kthttp.call.awaitOrNull
 import kotlinx.coroutines.launch
+import java.io.FileInputStream
 
 private enum class DownloadFilter(val label: String) {
     ALL("全部"),
@@ -99,7 +101,6 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
             DownloadFilter.COMPLETED to tasks.count { it.status == DownloadTask.Status.COMPLETED },
             DownloadFilter.FAILED to tasks.count { it.status == DownloadTask.Status.FAILED }
         )
-
 
 
     Scaffold(
@@ -371,9 +372,12 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(vertical = 8.dp)
+                    contentPadding = PaddingValues(vertical = 8.dp),
+
                 ) {
-                    items(filteredTasks, key = { it.id }) { sortedTask ->
+
+
+                    items(filteredTasks) { sortedTask ->
                         // 从 map 读取最新 task 数据（含 progress），O(1) 查找
                         val task = sortedTask
                         DownloadTaskItem(

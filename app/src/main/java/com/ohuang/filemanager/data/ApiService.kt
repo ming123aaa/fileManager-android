@@ -11,9 +11,11 @@ import com.ohuang.kthttp.jsonCall
 import com.ohuang.kthttp.post
 import com.ohuang.kthttp.stringHttpResponseCall
 import com.ohuang.kthttp.upload.addFile
+import com.ohuang.kthttp.upload.addFileInputSteam
 import com.ohuang.kthttp.upload.postUploadFile
 import com.ohuang.kthttp.url
 import java.io.File
+import java.io.FileInputStream
 
 object ApiService {
     private const val BASE_PATH = "/main"
@@ -157,7 +159,8 @@ object ApiService {
     }
 
     fun uploadFile(
-        file: File,
+        file: FileInputStream,
+        fileName: String,
         path: String,
         onProgress: (current: Long, totalSize: Long) -> Unit,
     ): HttpCall<String> {
@@ -165,7 +168,7 @@ object ApiService {
             url(HttpConfig.getBaseUrl() + BASE_PATH + "/fileUpload")
 
             postUploadFile {
-                addFile(key = "fileName", file = file, callBack = onProgress)
+                addFileInputSteam(key = "fileName", file = file, fileName = fileName, callBack = onProgress)
                 addFormDataPart("path", path)
             }
 

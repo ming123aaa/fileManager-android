@@ -25,6 +25,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.FileInputStream
 import kotlin.jvm.Throws
 
 class UploadService : Service() {
@@ -145,27 +146,28 @@ class UploadService : Service() {
                 if (isCannel) {
                     break
                 }
+                val fileName = getFileName(uri = fileUri)
 
-                var file: File? = null
+                var file: FileInputStream?=null
                 try {
-                    file = UriToFile.uriToFile(fileUri, this@UploadService)
+                    file = UriToFile.uriToFileInputStream(fileUri, this@UploadService)
                 } catch (e: Throwable) {
                     e.printStackTrace()
                 }
                 if (file == null) {
-                    failFiles.add(getFileName(uri = fileUri) + "--file is null")
+                    failFiles.add("$fileName--file is null")
                     continue
                 }
                 val num = index + 1
 
-                val fileName = file.name
+
                 liveData.postValue("正在上传 ($num/${fileUris.size}): $fileName")
                 showProgress("正在上传 ($num/${fileUris.size}): $fileName")
                 var lastUpdateTime = 0L
-
-                call = ApiService.uploadFile(file, path) { current, total ->
+                call = ApiService.uploadFile(file = file, fileName = fileName,path= path) { current, total ->
                     val now = System.currentTimeMillis()
                     if (now - lastUpdateTime > 500 || current == total) {
+                        lastUpdateTime= System.currentTimeMillis()
                         val s =
                             "${(current / (1024 * 1024 * 1.0f)).toFixed()}MB/${(total / (1024 * 1024 * 1.0f)).toFixed()}MB"
                         val progress =
@@ -182,12 +184,13 @@ class UploadService : Service() {
                 } catch (e: Throwable) {
                     failFiles.add((fileName + "--" + e.message))
                 }
-                delay(100)
-                clearFileCheche()
+
+
 
             }
 
-
+            delay(10)
+            clearFileCheche()
             isCannel = false
             isUploading.postValue(false)
             val message = StringBuilder().apply {
@@ -208,15 +211,27 @@ class UploadService : Service() {
     }
 
 
-    private fun getFileName(uri: Uri): String? {
+    private fun getFileName(uri: Uri): String {
         var name: String? = null
-        contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-            if (cursor.moveToFirst() && nameIndex >= 0) {
-                name = cursor.getString(nameIndex)
+        try {
+
+            contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (cursor.moveToFirst() && nameIndex >= 0) {
+                    name = cursor.getString(nameIndex)
+                }
             }
+            if (name==null){
+                val strs = uri.toString().split("/")
+                name=strs.lastOrNull()
+            }
+        }catch (e: Throwable){
+
+        }finally {
+
         }
-        return name
+
+        return name?:"未知文件_${System.currentTimeMillis()}"
     }
 
     fun clearFileCheche() {
