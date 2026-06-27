@@ -9,6 +9,7 @@ import android.os.Binder
 import android.os.Build
 import android.os.FileUtils
 import android.os.IBinder
+import android.provider.OpenableColumns
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.MutableLiveData
 import com.ohuang.filemanager.R
@@ -16,9 +17,11 @@ import com.ohuang.filemanager.data.ApiService
 import com.ohuang.filemanager.statedata.StateData
 import com.ohuang.filemanager.util.UriToFile
 import com.ohuang.kthttp.call.HttpCall
+import com.ohuang.kthttp.call.await
 import com.ohuang.kthttp.call.awaitOrNull
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -132,8 +135,8 @@ class UploadService : Service() {
         liveData.postValue("正在准备上传")
 
         GlobalScope.launch(Dispatchers.IO) {
-            var successCount = 0
-            var failCount = 0
+            val successFiles = mutableListOf<String>()
+            val failFiles = mutableListOf<String>()
 
             for ((index, fileUri) in fileUris.withIndex()) {
                 if (!isUploading.value) {
@@ -150,7 +153,7 @@ class UploadService : Service() {
                     e.printStackTrace()
                 }
                 if (file == null) {
-                    failCount++
+                    failFiles.add(getFileName(uri = fileUri) + "--file is null")
                     continue
                 }
                 val num = index + 1
@@ -158,40 +161,62 @@ class UploadService : Service() {
                 val fileName = file.name
                 liveData.postValue("正在上传 ($num/${fileUris.size}): $fileName")
                 showProgress("正在上传 ($num/${fileUris.size}): $fileName")
+                var lastUpdateTime = 0L
 
                 call = ApiService.uploadFile(file, path) { current, total ->
-                    val s =
-                        "${(current / (1024 * 1024 * 1.0f)).toFixed()}MB/${(total / (1024 * 1024 * 1.0f)).toFixed()}MB"
-                    val progress =
-                        "正在上传 ($num/${fileUris.size}): $fileName \n上传中:${(current * 100 / total)}%  $s"
-                    liveData.postValue(progress)
+                    val now = System.currentTimeMillis()
+                    if (now - lastUpdateTime > 500 || current == total) {
+                        val s =
+                            "${(current / (1024 * 1024 * 1.0f)).toFixed()}MB/${(total / (1024 * 1024 * 1.0f)).toFixed()}MB"
+                        val progress =
+                            "正在上传 ($num/${fileUris.size}): $fileName \n上传中:${(current * 100 / total)}%  $s"
+                        liveData.postValue(progress)
+                    }
+
                 }
 
-                val result = call?.awaitOrNull()
-
-
-                if (result != null && result.isNotBlank()) {
-                    successCount++
-                } else {
-                    failCount++
+                try {
+                    val result = call?.await()
+                    call == null
+                    successFiles.add("$fileName--$result")
+                } catch (e: Throwable) {
+                    failFiles.add((fileName + "--" + e.message))
                 }
-
-
-            }
-            withContext(Dispatchers.IO) {
+                delay(100)
                 clearFileCheche()
+
             }
+
 
             isCannel = false
             isUploading.postValue(false)
-            val message = when {
-                failCount == 0 -> "全部上传完成，成功 $successCount 个"
-                successCount == 0 -> "上传失败，共失败 $failCount 个"
-                else -> "上传完成，成功 $successCount 个，失败 $failCount 个"
-            }
+            val message = StringBuilder().apply {
+                append("上传完成,共${fileUris.size}个文件\n")
+
+                if (failFiles.isNotEmpty()) {
+                    append("失败${failFiles.size}个文件 :" + failFiles + "\n")
+                }
+                if (successFiles.isNotEmpty()) {
+                    append("成功${successFiles.size}个文件 :" + successFiles)
+                }
+
+
+            }.toString()
             liveData.postValue(message)
             showProgress(message)
         }
+    }
+
+
+    private fun getFileName(uri: Uri): String? {
+        var name: String? = null
+        contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            if (cursor.moveToFirst() && nameIndex >= 0) {
+                name = cursor.getString(nameIndex)
+            }
+        }
+        return name
     }
 
     fun clearFileCheche() {
