@@ -37,6 +37,7 @@ fun PreviewCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit = {},
     isSelected: Boolean = false,
+    isLocalFile: Boolean,
     // 多选模式相关
     isMultiSelectMode: Boolean = false,
     onToggleSelection: () -> Unit = {},
@@ -236,27 +237,31 @@ fun PreviewCard(
                         )
                     }
                 )
+                if (!isLocalFile) {
+                    DropdownMenuItem(
+                        text = { Text("下载") },
+                        onClick = { onDownload(file) },
+                        leadingIcon = {
+                            Icon(Icons.Default.Download, contentDescription = null)
+                        }
+                    )
+                }
                 DropdownMenuItem(
-                    text = { Text("下载") },
-                    onClick = { onDownload(file) },
-                    leadingIcon = {
-                        Icon(Icons.Default.Download, contentDescription = null)
-                    }
-                )
-                DropdownMenuItem(
-                    text = { Text("复制链接") },
+                    text = { Text(if (isLocalFile) "复制路径" else "复制链接") },
                     onClick = { onCopyLink(file) },
                     leadingIcon = {
                         Icon(Icons.Default.Link, contentDescription = null)
                     }
                 )
-                DropdownMenuItem(
-                    text = { Text("在浏览器打开") },
-                    onClick = { onOpenInNew(file) },
-                    leadingIcon = {
-                        Icon(Icons.Default.OpenInNew, contentDescription = null)
-                    }
-                )
+                if (!isLocalFile) {
+                    DropdownMenuItem(
+                        text = { Text(if (isLocalFile) "在其他应用打开" else "在浏览器打开") },
+                        onClick = { onOpenInNew(file) },
+                        leadingIcon = {
+                            Icon(Icons.Default.OpenInNew, contentDescription = null)
+                        }
+                    )
+                }
             } else {
                 if (FileType.isEditStringType(file.name) && !file.isWithinTextEditorLimit()) {
                     DropdownMenuItem(
@@ -268,30 +273,33 @@ fun PreviewCard(
                     )
                 }
 
+                if (!isLocalFile) {
+                    DropdownMenuItem(
+                        text = { Text("预览") },
+                        onClick = { onPreview(file) },
+                        leadingIcon = {
+                            Icon(Icons.Default.Visibility, contentDescription = null)
+                        }
+                    )
+                }
+                if (!isLocalFile) {
+                    DropdownMenuItem(
+                        text = { Text("下载") },
+                        onClick = { onDownload(file) },
+                        leadingIcon = {
+                            Icon(Icons.Default.Download, contentDescription = null)
+                        }
+                    )
+                }
                 DropdownMenuItem(
-                    text = { Text("预览") },
-                    onClick = { onPreview(file) },
-                    leadingIcon = {
-                        Icon(Icons.Default.Visibility, contentDescription = null)
-                    }
-                )
-
-                DropdownMenuItem(
-                    text = { Text("下载") },
-                    onClick = { onDownload(file) },
-                    leadingIcon = {
-                        Icon(Icons.Default.Download, contentDescription = null)
-                    }
-                )
-                DropdownMenuItem(
-                    text = { Text("复制下载链接") },
+                    text = { Text(if (isLocalFile) "复制路径" else "复制下载链接") },
                     onClick = { onCopyLink(file) },
                     leadingIcon = {
                         Icon(Icons.Default.Link, contentDescription = null)
                     }
                 )
                 DropdownMenuItem(
-                    text = { Text("在浏览器打开") },
+                    text = { Text(if (isLocalFile) "在其他应用打开" else "在浏览器打开") },
                     onClick = { onOpenInNew(file) },
                     leadingIcon = {
                         Icon(Icons.Default.OpenInNew, contentDescription = null)

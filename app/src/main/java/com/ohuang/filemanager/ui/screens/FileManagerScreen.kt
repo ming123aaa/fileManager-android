@@ -1,11 +1,15 @@
 package com.ohuang.filemanager.ui.screens
 
+import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.BackHandler
@@ -31,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.ohuang.filemanager.data.AppDownloadManager
@@ -88,7 +93,7 @@ fun FileManagerScreen(
 
     // 下拉刷新状态：加载完成时自动结束刷新动画
     var isRefreshing by remember { mutableStateOf(false) }
-    LaunchedEffect(isLoading) {
+    LaunchedEffect(!isLoading) {
         if (!isLoading) {
             isRefreshing = false
         }
@@ -137,6 +142,40 @@ fun FileManagerScreen(
     val showBatchDeleteDialog by viewModel.showBatchDeleteDialog.collectAsState()
     val showBatchMoveDialog by viewModel.showBatchMoveDialog.collectAsState()
     val showBatchDownloadDialog by viewModel.showBatchDownloadDialog.collectAsState()
+
+    // 存储权限申请
+    val legacyPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { _ -> }
+    val storagePermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { _ -> }
+
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (!Environment.isExternalStorageManager()) {
+                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                }
+                storagePermissionLauncher.launch(intent)
+            }
+        } else {
+            val readGranted = ContextCompat.checkSelfPermission(
+                context, Manifest.permission.READ_EXTERNAL_STORAGE
+            ) == PackageManager.PERMISSION_GRANTED
+            val writeGranted = ContextCompat.checkSelfPermission(
+                context, Manifest.permission.WRITE_EXTERNAL_STORAGE
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!readGranted || !writeGranted) {
+                legacyPermissionLauncher.launch(
+                    arrayOf(
+                        Manifest.permission.READ_EXTERNAL_STORAGE,
+                        Manifest.permission.WRITE_EXTERNAL_STORAGE
+                    )
+                )
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -282,8 +321,8 @@ fun FileManagerScreen(
                             rememberCoroutineScope.launch {
                                 if (!isRefreshing) {
                                     isRefreshing = true
-                                    delay(300)
                                     viewModel.refreshFiles()
+                                    isRefreshing = false
                                 }
                             }
 
@@ -440,11 +479,11 @@ fun FileManagerScreen(
                         TextButton(onClick = {
                             viewModel.hideToastMessage()
                         }) {
-                            Text("关闭")
+                            Text("关闭", color = MaterialTheme.colorScheme.primary)
                         }
                     }
                 ) {
-                    Text(it)
+                    Text(it, color = MaterialTheme.colorScheme.onPrimary)
                 }
             }
         }

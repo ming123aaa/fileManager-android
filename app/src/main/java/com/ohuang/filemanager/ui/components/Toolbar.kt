@@ -42,7 +42,8 @@ fun Toolbar(
     onViewModeChanged: (ViewMode) -> Unit = {},
     // 多选模式相关
     isMultiSelectMode: Boolean = false,
-    onToggleMultiSelectMode: () -> Unit = {}
+    onToggleMultiSelectMode: () -> Unit = {},
+    isLocalFile: Boolean=false
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         val mDeviceType= rememberDeviceType()
@@ -54,14 +55,25 @@ fun Toolbar(
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton (onClick = onGoUpClick) {
+
+            TextButton(
+                onClick = onGoUpClick ,
+
+                contentPadding = PaddingValues(horizontal =spacerWith, vertical = 4.dp)
+            ){
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    imageVector = Icons.Default.ArrowUpward,
                     contentDescription = "Go up",
-                    tint = if (canGoUp) MaterialTheme.colorScheme.onSurface 
-                           else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                    tint = if (canGoUp) MaterialTheme.colorScheme.onSurface
+                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                )
+                Text(
+                    text = "返回上级",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
+
 
             Spacer(modifier = Modifier.width(spacerWith))
 
@@ -115,12 +127,14 @@ fun Toolbar(
                 )
             }
 
-            IconButton(onClick = onUploadClick) {
-                Icon(
-                    imageVector = Icons.Default.Upload,
-                    contentDescription = "Upload",
-                    tint = MaterialTheme.colorScheme.onSurface
-                )
+            if (!isLocalFile) {
+                IconButton(onClick = onUploadClick) {
+                    Icon(
+                        imageVector = Icons.Default.Upload,
+                        contentDescription = "Upload",
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
             }
         }
     }

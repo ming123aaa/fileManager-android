@@ -41,7 +41,7 @@ fun FileList(
     selectedFile: FileItem?,
     onFileClick: (FileItem) -> Unit,
     lazyGridState: LazyGridState,
-
+    isLocalFile: Boolean=false,
     isRefreshing: Boolean = false,
     onRefresh: () -> Unit = {},
     viewMode: ViewMode = ViewMode.GRID,
@@ -122,6 +122,7 @@ fun FileList(
                             onLongClick = {
                                 contextMenuFile = file
                             },
+                            isLocalFile=isLocalFile,
                             isSelected = isFileSelected,
                             isMultiSelectMode = isMultiSelectMode,
                             onToggleSelection = { onToggleFileSelection(file) },
@@ -181,6 +182,7 @@ fun FileList(
                             onContextMenuDismiss = {
                                 contextMenuFile = null
                             },
+                            isLocalFile = isLocalFile,
                             onOpen = { f ->
                                 contextMenuFile = null
                                 if (f.isFolder) onFileClick(f) else onPreview(f)

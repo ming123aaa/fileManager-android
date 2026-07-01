@@ -775,11 +775,11 @@ fun ToastMessage(message: String?) {
         modifier = Modifier.padding(16.dp),
         action = {
             TextButton(onClick = {}) {
-                Text("关闭")
+                Text("关闭", color = MaterialTheme.colorScheme.primary)
             }
         }
     ) {
-        Text(message)
+        Text(message, color = MaterialTheme.colorScheme.onPrimary)
     }
 }
 

@@ -1,6 +1,5 @@
 package com.ohuang.filemanager
 
-import android.R.attr.repeatMode
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
@@ -19,7 +18,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateCentroid
@@ -29,8 +27,6 @@ import androidx.compose.foundation.gestures.calculateRotation
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -44,8 +40,6 @@ import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.PagerSnapDistance
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FastForward
@@ -58,7 +52,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -68,7 +61,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -82,20 +74,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastAny
 import androidx.compose.ui.util.fastForEach
@@ -108,19 +94,16 @@ import androidx.media3.common.Player
 import androidx.media3.common.Player.REPEAT_MODE_ALL
 import androidx.media3.common.Player.REPEAT_MODE_OFF
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import com.ohuang.filemanager.server.util.AppContext
 import com.ohuang.filemanager.ui.components.VideoThumbnail
-import com.ohuang.filemanager.ui.utils.DeviceType
 import com.ohuang.filemanager.ui.utils.rememberDeviceType
 import com.ohuang.filemanager.util.ClipboardUtils
 import com.ohuang.filemanager.util.ExoPlayerPoolManager
+import com.ohuang.filemanager.util.ImageGlide
 import com.ohuang.filemanager.util.SPUtil
-import com.ohuang.filemanager.util.dp2px
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.net.URLDecoder
@@ -146,10 +129,13 @@ class MediaPreviewActivity : ComponentActivity() {
         const val EXTRA_MEDIA_LIST = "extra_media_list"
         const val EXTRA_CURRENT_INDEX = "extra_current_index"
 
-        fun start(context: Context, mediaList: List<MediaFileInfo>, currentIndex: Int) {
+        const val EXTRA_LIST_LOOP="extra_list_loop"
+
+        fun start(context: Context, mediaList: List<MediaFileInfo>, currentIndex: Int,isLoop: Boolean=true) {
             val intent = Intent(context, MediaPreviewActivity::class.java).apply {
                 putExtra(EXTRA_MEDIA_LIST, Gson().toJson(mediaList))
                 putExtra(EXTRA_CURRENT_INDEX, currentIndex)
+                putExtra(EXTRA_LIST_LOOP, isLoop)
             }
             context.startActivity(intent)
         }
@@ -163,6 +149,7 @@ class MediaPreviewActivity : ComponentActivity() {
 
         val mediaListJson = intent.getStringExtra(EXTRA_MEDIA_LIST) ?: "[]"
         val currentIndex = intent.getIntExtra(EXTRA_CURRENT_INDEX, 0)
+        val isLoop = intent.getBooleanExtra(EXTRA_LIST_LOOP, true)
         val type = object : TypeToken<List<MediaFileInfo>>() {}.type
         val mediaList: List<MediaFileInfo> =
             Gson().fromJson(mediaListJson, type) ?: emptyList()
@@ -182,6 +169,7 @@ class MediaPreviewActivity : ComponentActivity() {
                         mediaList = mediaList,
                         initialIndex = currentIndex,
                         onClose = { finish() },
+                        isLoop=isLoop,
                         videoInfoMap = videoInfoMap,
                         playerManager = playerManager,
                         onToggleOrientation = { toggleOrientation() }
@@ -224,6 +212,7 @@ class MediaPreviewActivity : ComponentActivity() {
 fun MediaPreviewScreen(
     mediaList: List<MediaFileInfo>,
     initialIndex: Int,
+    isLoop: Boolean,
     videoInfoMap: SnapshotStateMap<String, Long>,
     playerManager: ExoPlayerPoolManager,
     onClose: () -> Unit,
@@ -238,7 +227,7 @@ fun MediaPreviewScreen(
     val isLockScrollDefault = SPUtil.get(context, "media_preview_lock_scroll", false) as Boolean
     var isAutoNext by rememberSaveable { mutableStateOf(isAutoNextDefault) }
     var isLockScroll by rememberSaveable { mutableStateOf(isLockScrollDefault) }
-    val pagerState = rememberPagerState(initialPage = initialIndex) { 100000 }
+    val pagerState = rememberPagerState(initialPage = initialIndex) { if (isLoop) 100000 else mediaList.size }
     val currentPage by remember { derivedStateOf { pagerState.currentPage } }
     val currentPageOffsetFraction by remember { derivedStateOf { pagerState.currentPageOffsetFraction } }
     var selectPage by rememberSaveable { mutableStateOf(currentPage) }
@@ -248,6 +237,7 @@ fun MediaPreviewScreen(
             selectPage = currentPage
         }
     }
+    val isPageFlippingEnabled =pagerState.pageCount>1&&isLoop  //翻页是否可用
     var uiVisible by rememberSaveable { mutableStateOf(true) }
 
     var pagerScrollEnabled by rememberSaveable { mutableStateOf(true) }
@@ -306,11 +296,13 @@ fun MediaPreviewScreen(
                         },
                         onSeekStart = { pagerScrollEnabled = false },
                         onSeekEnd = { pagerScrollEnabled = true },
-                        isAutoNext = isAutoNext,
+                        isAutoNext = isAutoNext&&isPageFlippingEnabled,
                         isPre = isPrePage,
                         onNext = {
                             rememberCoroutineScope.launch {
-                                pagerState.animateScrollToPage(currentPage + 1)
+                                if (currentPage+1<pagerState.pageCount) {
+                                    pagerState.animateScrollToPage(currentPage + 1)
+                                }
                             }
                         }
                     )
@@ -328,10 +320,12 @@ fun MediaPreviewScreen(
                             if (!pagerScrollEnabled) {
                                 uiVisible = pagerScrollEnabled
                             }
-                        }, isAutoNext = isAutoNext,
+                        }, isAutoNext = isAutoNext&&isPageFlippingEnabled,
                         onNext = {
                             rememberCoroutineScope.launch {
-                                pagerState.animateScrollToPage(currentPage + 1)
+                                if (currentPage+1<pagerState.pageCount) {
+                                    pagerState.animateScrollToPage(currentPage + 1)
+                                }
                             }
 
                         }
@@ -375,6 +369,7 @@ fun MediaPreviewScreen(
                 actions = {
                     Row {
 
+                        if (isPageFlippingEnabled) {
                             IconButton(onClick = {
                                 isAutoNext = !isAutoNext
                                 SPUtil.put(context, "media_preview_auto_next", isAutoNext)
@@ -390,16 +385,18 @@ fun MediaPreviewScreen(
                                     tint = Color.White
                                 )
                             }
-
-                        IconButton(onClick = {
-                            isLockScroll = !isLockScroll
-                            SPUtil.put(context, "media_preview_lock_scroll", isLockScroll)
-                        }) {
-                            Icon(
-                                imageVector = if (isLockScroll) Icons.Default.Lock  else Icons.Default.LockOpen,
-                                contentDescription = "锁定",
-                                tint = Color.White
-                            )
+                        }
+                        if (isPageFlippingEnabled) {
+                            IconButton(onClick = {
+                                isLockScroll = !isLockScroll
+                                SPUtil.put(context, "media_preview_lock_scroll", isLockScroll)
+                            }) {
+                                Icon(
+                                    imageVector = if (isLockScroll) Icons.Default.Lock else Icons.Default.LockOpen,
+                                    contentDescription = "锁定",
+                                    tint = Color.White
+                                )
+                            }
                         }
                         IconButton(onClick = onToggleOrientation) {
                             Icon(
@@ -502,8 +499,8 @@ fun ZoomableImage(
                 )
             }
     ) {
-        AsyncImage(
-            model = url,
+        ImageGlide(
+            url = url,
             contentDescription = null,
             modifier = Modifier
                 .fillMaxSize()

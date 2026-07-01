@@ -21,7 +21,8 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun Breadcrumb(
     currentPath: String,
-    onNavigate: (String) -> Unit
+    onNavigate: (String) -> Unit,
+    rootLabel: String = "根目录"
 ) {
     val scrollState = rememberScrollState()
 
@@ -47,7 +48,7 @@ fun Breadcrumb(
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = "根目录",
+                    text = rootLabel,
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontWeight = if (currentPath.isEmpty()) FontWeight.Bold else FontWeight.Normal
                     ),

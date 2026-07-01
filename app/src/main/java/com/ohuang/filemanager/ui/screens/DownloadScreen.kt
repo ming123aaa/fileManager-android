@@ -1,6 +1,16 @@
 package com.ohuang.filemanager.ui.screens
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.Settings
 import android.widget.Toast
+import androidx.core.content.ContextCompat
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -24,9 +34,10 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.ohuang.filemanager.data.AppDownloadManager
 import com.ohuang.filemanager.data.DownloadTask
-
+import com.ohuang.filemanager.ui.components.FileType
 import com.ohuang.kthttp.call.awaitOrNull
 import kotlinx.coroutines.launch
+import java.io.File
 import java.io.FileInputStream
 
 private enum class DownloadFilter(val label: String) {
@@ -53,6 +64,7 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
     var taskToDelete by remember { mutableStateOf<DownloadTask?>(null) }
     var showNewDownloadDialog by remember { mutableStateOf(false) }
     var showDownloadConfirmDialog by remember { mutableStateOf(false) }
+    var showDownloadSettingsDialog by remember { mutableStateOf(false) }
     var pendingUrl by remember { mutableStateOf("") }
     var pendingFileName by remember { mutableStateOf("") }
     var pendingFileSize by remember { mutableStateOf(0L) }
@@ -60,6 +72,67 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
 
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+
+    // 存储权限申请
+    val legacyPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { _ -> }
+    val storagePermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { _ -> }
+
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (!Environment.isExternalStorageManager()) {
+                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                }
+                storagePermissionLauncher.launch(intent)
+            }
+        } else {
+            val readGranted = ContextCompat.checkSelfPermission(
+                context, Manifest.permission.READ_EXTERNAL_STORAGE
+            ) == PackageManager.PERMISSION_GRANTED
+            val writeGranted = ContextCompat.checkSelfPermission(
+                context, Manifest.permission.WRITE_EXTERNAL_STORAGE
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!readGranted || !writeGranted) {
+                legacyPermissionLauncher.launch(
+                    arrayOf(
+                        Manifest.permission.READ_EXTERNAL_STORAGE,
+                        Manifest.permission.WRITE_EXTERNAL_STORAGE
+                    )
+                )
+            }
+        }
+    }
+
+    // APK 安装权限
+    var pendingApkFile by remember { mutableStateOf<File?>(null) }
+    val installPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O &&
+            context.packageManager.canRequestPackageInstalls()) {
+            pendingApkFile?.let { openFileInExternalApp(it, context) }
+        }
+        pendingApkFile = null
+    }
+    if (pendingApkFile != null && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+        val granted = context.packageManager.canRequestPackageInstalls()
+        if (!granted) {
+            LaunchedEffect(pendingApkFile) {
+                val intent = Intent(
+                    android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    android.net.Uri.parse("package:${context.packageName}")
+                )
+                installPermissionLauncher.launch(intent)
+            }
+        } else {
+            pendingApkFile?.let { openFileInExternalApp(it, context) }
+            pendingApkFile = null
+        }
+    }
 
     // 筛选：仅 sortedTasks 或 selectedFilter 变化时重算
     val filteredTasks = tasks.filter {
@@ -173,6 +246,7 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
                             )
                         }
 
+
                         if (isPaused) {
                             if (tasks.any { it.status == DownloadTask.Status.PAUSED }) {
                                 IconButton(onClick = { AppDownloadManager.resumeAll() }) {
@@ -211,66 +285,58 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
                                 )
                             }
                         }
+
+                        // 下载设置按钮
+                        IconButton(onClick = { showDownloadSettingsDialog = true }) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "下载设置"
+                            )
+                        }
                     }
                 }
             )
         }
     ) { paddingValues ->
         Column(modifier = Modifier.padding(paddingValues)) {
-            // 断点续传开关
-            Row(
+            
+            val downloadDirPath = remember {
+                File(
+                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                    "fileManager"
+                ).absolutePath
+            }
+
+            Card(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
+                shape = MaterialTheme.shapes.medium,
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                )
             ) {
-
-
-                Text(
-                    text = "下载目录:Download/fileManager",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    text = "强制覆盖文件:",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(horizontal = 5.dp)
-
-                )
-                Switch(
-                    checked = !isContinueDownload,
-                    onCheckedChange = { AppDownloadManager.setContinueDownload(!it) }
-                )
-
-            }
-
-            // 下载间隔设置
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
-            ) {
+                // 下载目录（点击进入目录）
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { LocalFileManagerActivity.start(context, downloadDirPath) }
+                        .padding(top=8.dp, bottom = 8.dp, start = 16.dp, end = 16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Icon(
+                        imageVector = Icons.Default.FolderOpen,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "下载间隔",
-                        style = MaterialTheme.typography.bodyMedium,
+                        text = "下载目录: Download/fileManager",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
                         modifier = Modifier.weight(1f)
                     )
-                    Text(
-                        text = "${downloadInterval}ms",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                 }
-                Slider(
-                    value = downloadInterval.toFloat(),
-                    onValueChange = { AppDownloadManager.setDownloadInterval(it.toLong()) },
-                    valueRange = 0f..1000f,
-                    steps = 99
-                )
             }
 
             // 筛选标签
@@ -387,6 +453,46 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
                             onToggleSelection = {
                                 if (task.id in selectedTaskIds) selectedTaskIds.remove(task.id)
                                 else selectedTaskIds.add(task.id)
+                            },
+                            onClick = {
+                                if (task.status == DownloadTask.Status.COMPLETED) {
+                                    val localFile = task.localFile
+                                    if (task.isFolder) {
+                                        LocalFileManagerActivity.start(context, localFile.absolutePath)
+                                    } else if (localFile.exists()) {
+                                        if (localFile.name.endsWith(".apk", ignoreCase = true) &&
+                                            android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O &&
+                                            !context.packageManager.canRequestPackageInstalls()) {
+                                            pendingApkFile = localFile
+                                        } else {
+                                            when{
+                                                FileType.isMediaType(localFile.name)->{
+                                                    openMediaPreview(files=listOf(localFile), currentFile = localFile,context=context, isLoop =false)
+                                                }
+                                                else->{
+                                                    openFileInExternalApp(localFile, context)
+                                                }
+                                            }
+
+                                        }
+                                    }
+                                }
+                            },
+                            onShare = {
+                                if (task.status == DownloadTask.Status.COMPLETED) {
+                                    val localFile = task.localFile
+                                    if (task.isFolder) {
+                                        LocalFileManagerActivity.start(context, localFile.absolutePath)
+                                    } else if (localFile.exists()) {
+                                        if (localFile.name.endsWith(".apk", ignoreCase = true) &&
+                                            android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O &&
+                                            !context.packageManager.canRequestPackageInstalls()) {
+                                            pendingApkFile = localFile
+                                        } else {
+                                            openFileInExternalApp(localFile, context)
+                                        }
+                                    }
+                                }
                             },
                             onPause = { AppDownloadManager.pauseDownload(task.id) },
                             onResume = { AppDownloadManager.resumeDownload(task.id) },
@@ -612,6 +718,81 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
             }
         )
     }
+
+    // 下载设置弹窗
+    if (showDownloadSettingsDialog) {
+        AlertDialog(
+            onDismissRequest = { showDownloadSettingsDialog = false },
+            title = { Text("下载设置") },
+            text = {
+                Column {
+                    // 断点续传开关
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FileCopy,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = "断点续传",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                            modifier = Modifier.weight(1f)
+                        )
+                        Switch(
+                            checked = isContinueDownload,
+                            onCheckedChange = { AppDownloadManager.setContinueDownload(it) },
+                            modifier = Modifier.height(20.dp)
+                        )
+                    }
+
+                    HorizontalDivider()
+
+                    // 下载间隔设置
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Timer,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.tertiary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = "下载间隔",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = "${downloadInterval}ms",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Slider(
+                        value = downloadInterval.toFloat(),
+                        onValueChange = { AppDownloadManager.setDownloadInterval(it.toLong()) },
+                        valueRange = 0f..1000f,
+                        steps = 99
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showDownloadSettingsDialog = false }) {
+                    Text("确定")
+                }
+            }
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -621,6 +802,8 @@ private fun DownloadTaskItem(
     isSelectionMode: Boolean,
     isSelected: Boolean,
     onToggleSelection: () -> Unit,
+    onClick: () -> Unit = {},
+    onShare:()-> Unit={},
     onPause: () -> Unit,
     onResume: () -> Unit,
     onCancel: () -> Unit,
@@ -634,6 +817,8 @@ private fun DownloadTaskItem(
             .let { mod ->
                 if (isSelectionMode) {
                     mod.then(Modifier.clickable { onToggleSelection() })
+                } else if (task.status == DownloadTask.Status.COMPLETED) {
+                    mod.then(Modifier.clickable { onClick() })
                 } else {
                     mod
                 }
@@ -782,6 +967,13 @@ private fun DownloadTaskItem(
                         }
 
                         DownloadTask.Status.COMPLETED -> {
+                            IconButton(onClick = onShare, modifier = Modifier.size(36.dp)) {
+                                Icon(
+                                    Icons.Default.OpenInNew,
+                                    contentDescription = "打开文件",
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
                             IconButton(onClick = onRemove, modifier = Modifier.size(36.dp)) {
                                 Icon(
                                     Icons.Default.Delete,
@@ -808,26 +1000,7 @@ private fun DownloadTaskItem(
     }
 }
 
-private fun getMimeType(fileName: String): String {
-    val ext = fileName.substringAfterLast('.', "").lowercase()
-    return when (ext) {
-        "jpg", "jpeg" -> "image/jpeg"
-        "png" -> "image/png"
-        "gif" -> "image/gif"
-        "webp" -> "image/webp"
-        "mp4" -> "video/mp4"
-        "mkv" -> "video/x-matroska"
-        "mp3" -> "audio/mpeg"
-        "wav" -> "audio/wav"
-        "pdf" -> "application/pdf"
-        "txt" -> "text/plain"
-        "json" -> "application/json"
-        "xml" -> "application/xml"
-        "zip" -> "application/zip"
-        "apk" -> "application/vnd.android.package-archive"
-        else -> "*/*"
-    }
-}
+
 
 private fun formatFileSize(bytes: Long): String {
     if (bytes <= 0) return "未知大小"

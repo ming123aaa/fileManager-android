@@ -172,12 +172,16 @@ class FileViewModel : ViewModel() {
         }
     }
 
-    private suspend fun requestFiles(path: String): Boolean {
+    private suspend fun requestFiles(path: String,isRefresh: Boolean=false): Boolean {
+        if (isRefresh) {
+            delay(500)
+        }
         _isLoading.value = true
         _errorMessage.value = null
         val data = ApiService.getAllFiles(path).awaitOrNull { error ->
             _errorMessage.value = error.message ?: "未知错误"
         }
+
 
 
         _isLoading.value = false
@@ -186,11 +190,13 @@ class FileViewModel : ViewModel() {
             _currentPath.value = path
             applyFilters()
         }
+
+
         return data != null
     }
 
     suspend fun refreshFiles() {
-        if (requestFiles(_currentPath.value)) {
+        if (requestFiles(_currentPath.value,true)) {
             showToastMessage("刷新完成")
         }
     }
@@ -699,13 +705,13 @@ class FileViewModel : ViewModel() {
 
     fun showDownloadDialog(file: FileItem) {
         viewModelScope.launch {
+            _isLoading.value = true
             val fileInfo = downloadFileInfo(file)
             if (fileInfo == null) {
-                showToastMessage("获取文件信息失败")
                 _isLoading.value = false
-                return@launch
+            }else {
+                _downloadFile.value = file.copy(length = fileInfo.contentLength)
             }
-            _downloadFile.value = file.copy(length = fileInfo.contentLength)
             _showDownloadDialog.value = true
         }
 
