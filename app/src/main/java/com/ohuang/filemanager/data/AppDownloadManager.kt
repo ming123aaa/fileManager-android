@@ -42,15 +42,25 @@ object AppDownloadManager {
     private val activeJobs = mutableMapOf<Long, Job>()
 
 
-    /** 是否断点续传（跳过已下载完成的文件） */
+    /** 继续下载  */
     private val _isContinueDownload =
-        MutableStateFlow(SPUtil.get(AppContext.instance, "_isContinueDownload", true) as Boolean)
+        MutableStateFlow(SPUtil.get(AppContext.instance, "_isContinueDownload", false) as Boolean)
     val isContinueDownload: StateFlow<Boolean> = _isContinueDownload
 
     /** 下载间隔 */
     private val _downloadInterval =
         MutableStateFlow(SPUtil.get(AppContext.instance, "_downloadInterval", 50L) as Long)
     val downloadInterval: StateFlow<Long> = _downloadInterval
+
+    /** 覆盖文件 */
+    private val _overwriteFile =
+        MutableStateFlow(SPUtil.get(AppContext.instance, "_overwriteFile", true) as Boolean)
+    val overwriteFile: StateFlow<Boolean> = _overwriteFile
+
+    /** 下载文件夹,若某个文件夹失败是否继续 */
+    private val _folderFairContinue =
+        MutableStateFlow(SPUtil.get(AppContext.instance, "_folderFairContinue", true) as Boolean)
+    val folderFairContinue: StateFlow<Boolean> = _folderFairContinue
 
     fun setDownloadInterval(time: Long) {
         var fTime = 50L
@@ -61,10 +71,24 @@ object AppDownloadManager {
         _downloadInterval.value = fTime
     }
 
+
     fun setContinueDownload(value: Boolean) {
         SPUtil.put(AppContext.instance, "_isContinueDownload", value)
         _isContinueDownload.value = value
     }
+
+
+    fun setOverwriteFile(value: Boolean) {
+        SPUtil.put(AppContext.instance, "_overwriteFile", value)
+        _overwriteFile.value = value
+    }
+
+    fun setFolderFairContinue(value: Boolean) {
+        SPUtil.put(AppContext.instance, "_folderFairContinue", value)
+        _folderFairContinue.value = value
+    }
+
+
 
 
     // 等待队列：只传递任务id，worker从列表取最新数据
@@ -257,6 +281,7 @@ object AppDownloadManager {
     }
 
     private suspend fun download(
+        taskCreateTime: Long,
         url: String,
         file: File,
         isContinueDownload: Boolean, //是否断点下载
@@ -277,13 +302,25 @@ object AppDownloadManager {
         if (isDownloaded) return null
         try {
             delay(_downloadInterval.value)
+
+
+            if (!_overwriteFile.value&&file.exists() && (file.lastModified() < taskCreateTime)) {//不允许覆盖文件
+                error("文件已存在")
+                return null
+            }
+            val hasFile =
+                file.exists() && (file.lastModified() >= taskCreateTime) //存在有效文件
+
+
+
             return ApiService.download(
                 url = url,
                 file = file,
-                isContinueDownload = isContinueDownload,
+                isContinueDownload =  hasFile||isContinueDownload,
                 onProcess = onProcess
             ).awaitOrNull()
         } catch (e: Throwable) {
+            error("下载失败")
             throwCancellationException(e)
         } finally {
             synchronized(lock = downloadingFiles) {
@@ -319,6 +356,7 @@ object AppDownloadManager {
 
             var msg: String = "下载失败"
             val result = download(
+                taskCreateTime = task.createTime,
                 url = url,
                 file = task.localFile,
                 isContinueDownload = _isContinueDownload.value,
@@ -383,8 +421,6 @@ object AppDownloadManager {
                         )
                     }
                     return@scanFolder true
-
-
                 }
             ) { serverPath: String, file: File, size: Long ->
                 fileInfos.add(Triple<String, File, Long>(serverPath, file, size))
@@ -396,7 +432,6 @@ object AppDownloadManager {
                         it.copy(
                             totalFiles = fileInfos.size,
                             totalSize = totalSize,
-
                             downloadedSize = 0,
                             completedFiles = 0,
                         )
@@ -440,6 +475,7 @@ object AppDownloadManager {
 
             var downloadedBytes = task.downloadedSize
             var completedFiles = task.completedFiles
+            var errorFiles = 0
 
             for (index in completedFiles until fileInfos.size) {
                 val (serverPath, localFile, fileSize) = fileInfos[index]
@@ -461,6 +497,7 @@ object AppDownloadManager {
 
                 var msg: String = "下载失败"
                 val result = download(
+                    taskCreateTime = task.createTime,
                     url = url,
                     file = localFile,
                     isContinueDownload = _isContinueDownload.value,
@@ -490,15 +527,20 @@ object AppDownloadManager {
                 }
 
                 if (result == null) {
-                    updateTaskIf(taskId, { true }) {
-                        it.copy(
-                            status = DownloadTask.Status.FAILED,
-                            errorMessage = "$msg url=$url",
-                            downloadedSize = downloadedBytes,
-                            completedFiles = completedFiles
-                        )
+                    if (_folderFairContinue.value) {
+                        errorFiles++
+                        continue
+                    } else {
+                        updateTaskIf(taskId, { true }) {
+                            it.copy(
+                                status = DownloadTask.Status.FAILED,
+                                errorMessage = "$msg url=$url",
+                                downloadedSize = downloadedBytes,
+                                completedFiles = completedFiles
+                            )
+                        }
+                        return@coroutineScope
                     }
-                    return@coroutineScope
                 }
 
                 downloadedBytes += fileSize
@@ -512,14 +554,25 @@ object AppDownloadManager {
                 }
             }
 
-
-            updateTaskIf(taskId, { true }) {
-                it.copy(
-                    status = DownloadTask.Status.COMPLETED,
-                    downloadedSize = totalSize,
-                    completedFiles = fileInfos.size,
-                    totalFiles = fileInfos.size
-                )
+            if (errorFiles > 0) {
+                updateTaskIf(taskId, { true }) {
+                    it.copy(
+                        status = DownloadTask.Status.FAILED,
+                        errorMessage = "共${fileInfos.size}个文件,下载失败(${errorFiles}个文件)",
+                        downloadedSize = totalSize,
+                        completedFiles = fileInfos.size,
+                        totalFiles = fileInfos.size
+                    )
+                }
+            } else {
+                updateTaskIf(taskId, { true }) {
+                    it.copy(
+                        status = DownloadTask.Status.COMPLETED,
+                        downloadedSize = totalSize,
+                        completedFiles = fileInfos.size,
+                        totalFiles = fileInfos.size
+                    )
+                }
             }
         }
     }
@@ -692,9 +745,11 @@ object AppDownloadManager {
         if (activeTasks.isNotEmpty()) {
             val downloading = activeTasks.filter { it.status == DownloadTask.Status.DOWNLOADING }
             if (downloading.isNotEmpty()) {
-                _progressMessage.value = "下载中(${activeTasks.size}个任务) 已完成(${completedCount}个任务)"
+                _progressMessage.value =
+                    "下载中(${activeTasks.size}个任务) 已完成(${completedCount}个任务)"
             } else {
-                _progressMessage.value = "等待下载(${activeTasks.size}个任务) 已完成(${completedCount}个任务)"
+                _progressMessage.value =
+                    "等待下载(${activeTasks.size}个任务) 已完成(${completedCount}个任务)"
             }
         } else {
             if (totalCount > 0) {

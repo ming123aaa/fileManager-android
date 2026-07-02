@@ -73,6 +73,7 @@ fun FileManagerScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
     val showToast by viewModel.showToast.collectAsState()
+    val showErrorToast by viewModel.showErrorToast.collectAsState()
     val viewMode by viewModel.viewMode.collectAsState()
 
     // 上传结果处理：上传成功后刷新文件列表
@@ -431,6 +432,22 @@ fun FileManagerScreen(
                 }
             }
 
+            showErrorToast?.let {
+                Snackbar(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(16.dp),
+                    action = {
+                        TextButton(onClick = {
+                            viewModel.hideErrorToastMessage()
+                        }) {
+                            Text("关闭", color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                ) {
+                    Text(it, color = MaterialTheme.colorScheme.error)
+                }
+            }
             showToast?.let {
                 Snackbar(
                     modifier = Modifier

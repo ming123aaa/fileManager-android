@@ -17,7 +17,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -38,7 +37,6 @@ import com.ohuang.filemanager.ui.components.FileType
 import com.ohuang.kthttp.call.awaitOrNull
 import kotlinx.coroutines.launch
 import java.io.File
-import java.io.FileInputStream
 
 private enum class DownloadFilter(val label: String) {
     ALL("全部"),
@@ -52,8 +50,11 @@ private enum class DownloadFilter(val label: String) {
 @Composable
 fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
     val tasks = AppDownloadManager.tasks.map { it.value }
-    val isContinueDownload by AppDownloadManager.isContinueDownload.collectAsState()
 
+
+    val folderFairContinue by AppDownloadManager.folderFairContinue.collectAsState()
+    val isOverwriteFile by AppDownloadManager.overwriteFile.collectAsState()
+    val isContinueDownload by AppDownloadManager.isContinueDownload.collectAsState()
     val downloadInterval by AppDownloadManager.downloadInterval.collectAsState()
 
     var selectedFilter by remember { mutableStateOf(DownloadFilter.ALL) }
@@ -746,11 +747,12 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
             title = { Text("下载设置") },
             text = {
                 Column {
-                    // 断点续传开关
+
+
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 8.dp),
+                            .padding(vertical = 16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
@@ -768,6 +770,64 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
                         Switch(
                             checked = isContinueDownload,
                             onCheckedChange = { AppDownloadManager.setContinueDownload(it) },
+                            modifier = Modifier.height(20.dp)
+                        )
+                    }
+
+                    HorizontalDivider()
+
+                    // 覆盖文件
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FileCopy,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = "覆盖已存在的文件",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                            modifier = Modifier.weight(1f)
+                        )
+                        Switch(
+                            checked = isOverwriteFile,
+                            onCheckedChange = { AppDownloadManager.setOverwriteFile(it) },
+                            modifier = Modifier.height(20.dp)
+                        )
+                    }
+
+                    HorizontalDivider()
+
+
+
+                    // 文件夹下载
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FileCopy,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = "下载文件夹时,忽略下载失败的文件",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                            modifier = Modifier.weight(1f)
+                        )
+                        Switch(
+                            checked = folderFairContinue,
+                            onCheckedChange = { AppDownloadManager.setFolderFairContinue(it) },
                             modifier = Modifier.height(20.dp)
                         )
                     }

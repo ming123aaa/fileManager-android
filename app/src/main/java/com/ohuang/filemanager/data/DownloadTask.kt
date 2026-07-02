@@ -13,7 +13,6 @@ data class DownloadTask(
     val errorMessage: String? = null,
     val createTime: Long = System.currentTimeMillis(),
     val isFolder: Boolean = false, //是否是文件夹
-
     val completedFiles: Int = 0,//已下载的文件数量
     val totalFiles: Int = 0//总共的文件数量
 ) {

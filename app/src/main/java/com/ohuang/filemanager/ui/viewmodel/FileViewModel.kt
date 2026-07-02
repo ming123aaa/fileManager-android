@@ -68,6 +68,9 @@ class FileViewModel : ViewModel() {
     private val _showToast = MutableStateFlow<String?>(null)
     val showToast: StateFlow<String?> = _showToast
 
+    private val _showErrorToast = MutableStateFlow<String?>(null)
+    val showErrorToast: StateFlow<String?> = _showErrorToast
+
     private val _showMkdirDialog = MutableStateFlow(false)
     val showMkdirDialog: StateFlow<Boolean> = _showMkdirDialog
 
@@ -321,7 +324,7 @@ class FileViewModel : ViewModel() {
             val result = ApiService.createFolder(name, _currentPath.value).awaitOrNull { error ->
                 _isLoading.value = false
                 _showMkdirDialog.value = false
-                showToastMessage(error.message ?: "未知错误")
+                showErrorToastMessage(error.message ?: "未知错误")
             }
 
             _isLoading.value = false
@@ -351,7 +354,7 @@ class FileViewModel : ViewModel() {
             val result = ApiService.renameFile(fullPath, newName).awaitOrNull { error ->
                 _isLoading.value = false
                 _showRenameDialog.value = false
-                showToastMessage(error.message ?: "未知错误")
+                showErrorToastMessage(error.message ?: "未知错误")
             }
 
             _isLoading.value = false
@@ -381,7 +384,7 @@ class FileViewModel : ViewModel() {
             val result = ApiService.deleteFile(fullPath).awaitOrNull { error ->
                 _isLoading.value = false
                 _showDeleteDialog.value = false
-                showToastMessage(error.message ?: "未知错误")
+                showErrorToastMessage(error.message ?: "未知错误")
             }
 
             _isLoading.value = false
@@ -411,7 +414,7 @@ class FileViewModel : ViewModel() {
             val result = ApiService.moveFile(fullPath, targetPath).awaitOrNull { error ->
                 _isLoading.value = false
                 _showMoveDialog.value = false
-                showToastMessage(error.message ?: "未知错误")
+                showErrorToastMessage(error.message ?: "未知错误")
             }
 
             _isLoading.value = false
@@ -450,20 +453,20 @@ class FileViewModel : ViewModel() {
 
             val fileInfo = downloadFileInfo(file)
             if (fileInfo == null) {
-                showToastMessage("获取文件信息失败")
+                showErrorToastMessage("获取文件信息失败")
                 job.cancel()
                 hideLoadingDialog()
                 return@launch
             }
 
             if (file.isWithinTextEditorLimit(fileInfo.contentLength)) {
-                showToastMessage("文件过大,请下载后编辑")
+                showErrorToastMessage("文件过大,请下载后编辑")
                 job.cancel()
                 hideLoadingDialog()
                 return@launch
             }
             val content = ApiService.readText(fullPath).awaitOrNull { error ->
-                showToastMessage(error.message ?: "未知错误")
+                showErrorToastMessage(error.message ?: "未知错误")
             }
             job.cancel()
             hideLoadingDialog()
@@ -705,12 +708,10 @@ class FileViewModel : ViewModel() {
 
     fun showDownloadDialog(file: FileItem) {
         viewModelScope.launch {
-            _isLoading.value = true
             val fileInfo = downloadFileInfo(file)
             if (fileInfo != null) {
                 _downloadFile.value = file.copy(length = fileInfo.contentLength)
             }
-            _isLoading.value = false
             _showDownloadDialog.value = true
         }
 
@@ -744,8 +745,19 @@ class FileViewModel : ViewModel() {
         }
     }
 
+    fun showErrorToastMessage(message: String) {
+        _showErrorToast.value = message
+        viewModelScope.launch {
+            delay(3000)
+            _showErrorToast.value = null
+        }
+    }
+
     fun hideToastMessage() {
         _showToast.value = null
+    }
+    fun hideErrorToastMessage() {
+        _showErrorToast.value = null
     }
 
     fun getFullPath(file: FileItem): String {
@@ -1019,7 +1031,7 @@ class FileViewModel : ViewModel() {
             if (added) {
                 showToastMessage("已开始下载: ${file.getFileName()}")
             } else {
-                showToastMessage("文件已在下载列表中: ${file.getFileName()}")
+                showErrorToastMessage("文件已在下载列表中: ${file.getFileName()}")
             }
 
         } else {
@@ -1028,7 +1040,7 @@ class FileViewModel : ViewModel() {
             if (added) {
                 showToastMessage("已开始下载: ${file.getFileName()}")
             } else {
-                showToastMessage("文件已在下载列表中: ${file.getFileName()}")
+                showErrorToastMessage("文件已在下载列表中: ${file.getFileName()}")
             }
         }
     }
