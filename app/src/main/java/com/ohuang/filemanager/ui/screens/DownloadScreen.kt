@@ -763,7 +763,7 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
-                            text = "断点续传",
+                            text = "文件继续下载",
                             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
                             modifier = Modifier.weight(1f)
                         )
