@@ -17,7 +17,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.LazyGridState
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
@@ -26,9 +25,6 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -46,10 +42,7 @@ import com.ohuang.filemanager.MediaPreviewActivity
 import com.ohuang.filemanager.ui.components.*
 import com.ohuang.filemanager.ui.utils.DeviceType
 import com.ohuang.filemanager.ui.utils.rememberDeviceType
-import com.ohuang.filemanager.ui.utils.rememberGridColumns
-import com.ohuang.filemanager.ui.utils.rememberPreViewGridColumns
 import com.ohuang.filemanager.ui.viewmodel.FileViewModel
-import com.ohuang.filemanager.ui.viewmodel.ViewMode
 import com.ohuang.filemanager.util.SPUtil
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -143,39 +136,7 @@ fun FileManagerScreen(
     val showBatchMoveDialog by viewModel.showBatchMoveDialog.collectAsState()
     val showBatchDownloadDialog by viewModel.showBatchDownloadDialog.collectAsState()
 
-    // 存储权限申请
-    val legacyPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { _ -> }
-    val storagePermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { _ -> }
 
-    LaunchedEffect(Unit) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            if (!Environment.isExternalStorageManager()) {
-                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
-                    data = Uri.parse("package:${context.packageName}")
-                }
-                storagePermissionLauncher.launch(intent)
-            }
-        } else {
-            val readGranted = ContextCompat.checkSelfPermission(
-                context, Manifest.permission.READ_EXTERNAL_STORAGE
-            ) == PackageManager.PERMISSION_GRANTED
-            val writeGranted = ContextCompat.checkSelfPermission(
-                context, Manifest.permission.WRITE_EXTERNAL_STORAGE
-            ) == PackageManager.PERMISSION_GRANTED
-            if (!readGranted || !writeGranted) {
-                legacyPermissionLauncher.launch(
-                    arrayOf(
-                        Manifest.permission.READ_EXTERNAL_STORAGE,
-                        Manifest.permission.WRITE_EXTERNAL_STORAGE
-                    )
-                )
-            }
-        }
-    }
 
     Scaffold(
         topBar = {
@@ -536,17 +497,27 @@ fun FileManagerScreen(
         }
     )
 
+
+
+
+
+    checkStoragePermission(context,showDownloadDialog)
+
+
     DownloadDialog(
         show = showDownloadDialog,
         file = downloadFile,
         onDismiss = { viewModel.hideDownloadDialog() },
         onDownload = {
+
             downloadFile?.let { file ->
                 viewModel.hideDownloadDialog()
                 viewModel.downloadFileOrFolder(context, file)
             }
         }
     )
+
+
 
     EditDialog(
         show = showEditDialog,
@@ -590,6 +561,46 @@ fun FileManagerScreen(
             viewModel.hideBatchDownloadDialog()
         }
     )
+}
+
+@Composable
+private fun checkStoragePermission(context: Context,isCheck: Boolean) {
+    // 存储权限申请
+    val legacyPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { _ -> }
+    val storagePermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { _ -> }
+
+    LaunchedEffect(isCheck) {
+        if (!isCheck){
+            return@LaunchedEffect
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (!Environment.isExternalStorageManager()) {
+                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                }
+                storagePermissionLauncher.launch(intent)
+            }
+        } else {
+            val readGranted = ContextCompat.checkSelfPermission(
+                context, Manifest.permission.READ_EXTERNAL_STORAGE
+            ) == PackageManager.PERMISSION_GRANTED
+            val writeGranted = ContextCompat.checkSelfPermission(
+                context, Manifest.permission.WRITE_EXTERNAL_STORAGE
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!readGranted || !writeGranted) {
+                legacyPermissionLauncher.launch(
+                    arrayOf(
+                        Manifest.permission.READ_EXTERNAL_STORAGE,
+                        Manifest.permission.WRITE_EXTERNAL_STORAGE
+                    )
+                )
+            }
+        }
+    }
 }
 
 /**

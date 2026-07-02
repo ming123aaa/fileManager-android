@@ -53,7 +53,7 @@ private enum class DownloadFilter(val label: String) {
 fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
     val tasks = AppDownloadManager.tasks.map { it.value }
     val isContinueDownload by AppDownloadManager.isContinueDownload.collectAsState()
-    val isPaused by AppDownloadManager.isPaused.collectAsState()
+
     val downloadInterval by AppDownloadManager.downloadInterval.collectAsState()
 
     var selectedFilter by remember { mutableStateOf(DownloadFilter.ALL) }
@@ -81,7 +81,21 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
         ActivityResultContracts.StartActivityForResult()
     ) { _ -> }
 
+    // 通知权限申请
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { _ -> }
+
     LaunchedEffect(Unit) {
+        // 申请通知权限
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED
+            ) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             if (!Environment.isExternalStorageManager()) {
                 val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
@@ -113,7 +127,8 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
         ActivityResultContracts.StartActivityForResult()
     ) {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O &&
-            context.packageManager.canRequestPackageInstalls()) {
+            context.packageManager.canRequestPackageInstalls()
+        ) {
             pendingApkFile?.let { openFileInExternalApp(it, context) }
         }
         pendingApkFile = null
@@ -247,32 +262,23 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
                         }
 
 
-                        if (isPaused) {
-                            if (tasks.any { it.status == DownloadTask.Status.PAUSED }) {
-                                IconButton(onClick = { AppDownloadManager.resumeAll() }) {
-                                    Icon(
-                                        imageVector = Icons.Default.PlayCircle,
-                                        contentDescription = "全部继续"
-                                    )
-                                }
+
+                        if (tasks.any { it.status == DownloadTask.Status.DOWNLOADING || it.status == DownloadTask.Status.WAITING }) {
+                            IconButton(onClick = { AppDownloadManager.pauseAll() }) {
+                                Icon(
+                                    imageVector = Icons.Default.PauseCircle,
+                                    contentDescription = "全部暂停"
+                                )
                             }
-                        } else {
-                            if (tasks.any { it.status == DownloadTask.Status.DOWNLOADING || it.status == DownloadTask.Status.WAITING }) {
-                                IconButton(onClick = { AppDownloadManager.pauseAll() }) {
-                                    Icon(
-                                        imageVector = Icons.Default.PauseCircle,
-                                        contentDescription = "全部暂停"
-                                    )
-                                }
-                            } else if (tasks.any { it.status == DownloadTask.Status.PAUSED }) {
-                                IconButton(onClick = { AppDownloadManager.resumeAll() }) {
-                                    Icon(
-                                        imageVector = Icons.Default.PlayCircle,
-                                        contentDescription = "全部继续"
-                                    )
-                                }
+                        } else if (tasks.any { it.status == DownloadTask.Status.PAUSED }) {
+                            IconButton(onClick = { AppDownloadManager.resumeAll() }) {
+                                Icon(
+                                    imageVector = Icons.Default.PlayCircle,
+                                    contentDescription = "全部继续"
+                                )
                             }
                         }
+
                         if (tasks.isNotEmpty()) {
                             IconButton(onClick = {
                                 selectedTaskIds.clear()
@@ -299,7 +305,7 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
         }
     ) { paddingValues ->
         Column(modifier = Modifier.padding(paddingValues)) {
-            
+
             val downloadDirPath = remember {
                 File(
                     Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
@@ -321,7 +327,7 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { LocalFileManagerActivity.start(context, downloadDirPath) }
-                        .padding(top=8.dp, bottom = 8.dp, start = 16.dp, end = 16.dp),
+                        .padding(top = 8.dp, bottom = 8.dp, start = 16.dp, end = 16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
@@ -440,7 +446,7 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(vertical = 8.dp),
 
-                ) {
+                    ) {
 
 
                     items(filteredTasks) { sortedTask ->
@@ -458,18 +464,28 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
                                 if (task.status == DownloadTask.Status.COMPLETED) {
                                     val localFile = task.localFile
                                     if (task.isFolder) {
-                                        LocalFileManagerActivity.start(context, localFile.absolutePath)
+                                        LocalFileManagerActivity.start(
+                                            context,
+                                            localFile.absolutePath
+                                        )
                                     } else if (localFile.exists()) {
                                         if (localFile.name.endsWith(".apk", ignoreCase = true) &&
                                             android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O &&
-                                            !context.packageManager.canRequestPackageInstalls()) {
+                                            !context.packageManager.canRequestPackageInstalls()
+                                        ) {
                                             pendingApkFile = localFile
                                         } else {
-                                            when{
-                                                FileType.isMediaType(localFile.name)->{
-                                                    openMediaPreview(files=listOf(localFile), currentFile = localFile,context=context, isLoop =false)
+                                            when {
+                                                FileType.isMediaType(localFile.name) -> {
+                                                    openMediaPreview(
+                                                        files = listOf(localFile),
+                                                        currentFile = localFile,
+                                                        context = context,
+                                                        isLoop = false
+                                                    )
                                                 }
-                                                else->{
+
+                                                else -> {
                                                     openFileInExternalApp(localFile, context)
                                                 }
                                             }
@@ -482,11 +498,15 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
                                 if (task.status == DownloadTask.Status.COMPLETED) {
                                     val localFile = task.localFile
                                     if (task.isFolder) {
-                                        LocalFileManagerActivity.start(context, localFile.absolutePath)
+                                        LocalFileManagerActivity.start(
+                                            context,
+                                            localFile.absolutePath
+                                        )
                                     } else if (localFile.exists()) {
                                         if (localFile.name.endsWith(".apk", ignoreCase = true) &&
                                             android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O &&
-                                            !context.packageManager.canRequestPackageInstalls()) {
+                                            !context.packageManager.canRequestPackageInstalls()
+                                        ) {
                                             pendingApkFile = localFile
                                         } else {
                                             openFileInExternalApp(localFile, context)
@@ -803,7 +823,7 @@ private fun DownloadTaskItem(
     isSelected: Boolean,
     onToggleSelection: () -> Unit,
     onClick: () -> Unit = {},
-    onShare:()-> Unit={},
+    onShare: () -> Unit = {},
     onPause: () -> Unit,
     onResume: () -> Unit,
     onCancel: () -> Unit,
@@ -877,17 +897,19 @@ private fun DownloadTaskItem(
                                 if (task.isFolder) {
                                     val stringBuilder = StringBuilder()
                                     if (task.downloadedSize == 0L) {
-                                        val str="扫描文件中,已扫描${task.totalFiles}个文件 "
+                                        val str = "扫描文件中,已扫描${task.totalFiles}个文件 "
                                         stringBuilder.append(str)
                                     } else {
-                                        val str="${task.completedFiles}/${task.totalFiles} 文件  ${task.formatDownloadedSize()} / ${task.formatTotalSize()} "
+                                        val str =
+                                            "${task.completedFiles}/${task.totalFiles} 文件  ${task.formatDownloadedSize()} / ${task.formatTotalSize()} "
                                         stringBuilder.append(str)
                                     }
 
 
                                     stringBuilder.toString()
                                 } else {
-                                    val stringBuilder = StringBuilder("${task.formatDownloadedSize()} / ${task.formatTotalSize()}")
+                                    val stringBuilder =
+                                        StringBuilder("${task.formatDownloadedSize()} / ${task.formatTotalSize()}")
 
 
                                     stringBuilder.toString()
@@ -999,7 +1021,6 @@ private fun DownloadTaskItem(
         }
     }
 }
-
 
 
 private fun formatFileSize(bytes: Long): String {

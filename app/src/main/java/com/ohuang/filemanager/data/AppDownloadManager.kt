@@ -8,6 +8,10 @@ import com.ohuang.filemanager.util.SPUtil
 import com.ohuang.kthttp.call.awaitOrNull
 import com.ohuang.kthttp.call.throwCancellationException
 import com.ohuang.kthttp.httpCallRetryOnFailure
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import com.ohuang.filemanager.service.DownloadService
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -62,12 +66,17 @@ object AppDownloadManager {
         _isContinueDownload.value = value
     }
 
-    /** 全局暂停标志：暂停所有后新任务不会自动开始下载 */
-    private val _isPaused = MutableStateFlow(false)
-    val isPaused: StateFlow<Boolean> = _isPaused
 
     // 等待队列：只传递任务id，worker从列表取最新数据
     private val pendingChannel = Channel<Long>(Channel.UNLIMITED)
+
+    /** 下载进度通知消息 */
+    private val _progressMessage = MutableStateFlow("")
+    val progressMessage: StateFlow<String> = _progressMessage
+
+    /** 下载是否正在进行（有下载中或等待中的任务） */
+    private val _hasActiveDownloads = MutableStateFlow(false)
+    val hasActiveDownloads: StateFlow<Boolean> = _hasActiveDownloads
 
     init {
         // 启动固定数量的 worker，从等待队列取任务执行
@@ -117,10 +126,11 @@ object AppDownloadManager {
                 status = DownloadTask.Status.WAITING
             ).also { addTask(it) }
         }
-        // 全局暂停时只入队不触发下载，等 resumeAll 时再统一调度
-        if (!_isPaused.value) {
-            pendingChannel.trySend(task.id)
-        }
+
+
+        pendingChannel.trySend(task.id)
+
+        startDownloadService(AppContext.instance)
         return true
     }
 
@@ -144,9 +154,10 @@ object AppDownloadManager {
             isFolder = true
         ).also { addTask(it) }
 
-        if (!_isPaused.value) {
-            pendingChannel.trySend(task.id)
-        }
+
+        pendingChannel.trySend(task.id)
+
+        startDownloadService(AppContext.instance)
         return true
     }
 
@@ -357,9 +368,9 @@ object AppDownloadManager {
 
 
             // 扫描文件夹获取所有文件
-            val isError=scanFolder(
+            val isError = scanFolder(
                 task.serverPath,
-                task.localFile, { errorFolder->
+                task.localFile, { errorFolder ->
 
                     updateTask(taskId) {
                         it.copy(
@@ -392,7 +403,7 @@ object AppDownloadManager {
                     }
                 }
             }
-            if (isError){
+            if (isError) {
                 return@coroutineScope
             }
             if (!isActive) {
@@ -459,7 +470,10 @@ object AppDownloadManager {
                     if (now - lastUpdateTime >= 500) {
                         lastUpdateTime = now
                         updateTask(taskId) {
-                            it.copy(downloadedSize = downloadedBytes + current,completedFiles = completedFiles)
+                            it.copy(
+                                downloadedSize = downloadedBytes + current,
+                                completedFiles = completedFiles
+                            )
                         }
                     }
                 }
@@ -523,6 +537,7 @@ object AppDownloadManager {
             }
             tasks[task.id] = task
         }
+        notifyProgressChanged()
     }
 
     private fun updateTask(id: Long, update: (DownloadTask) -> DownloadTask) {
@@ -530,6 +545,7 @@ object AppDownloadManager {
             val current = tasks[id] ?: return
             tasks[id] = update(current)
         }
+        notifyProgressChanged()
     }
 
     private inline fun updateTaskIf(
@@ -543,6 +559,7 @@ object AppDownloadManager {
                 tasks[id] = update(current)
             }
         }
+        notifyProgressChanged()
     }
 
     fun cancelDownload(taskId: Long) {
@@ -572,7 +589,7 @@ object AppDownloadManager {
     }
 
     fun pauseAll() {
-        _isPaused.value = true
+
         drainPendingChannel()
         val toPause = mutableListOf<Long>()
         synchronized(tasksLock) {
@@ -595,7 +612,7 @@ object AppDownloadManager {
     }
 
     fun resumeAll() {
-        _isPaused.value = false
+
         val toResume = mutableListOf<Long>()
         synchronized(tasksLock) {
             for ((id, task) in tasks) {
@@ -641,12 +658,14 @@ object AppDownloadManager {
         synchronized(tasksLock) {
             tasks.remove(taskId)
         }
+        notifyProgressChanged()
     }
 
     fun clearCompleted() {
         synchronized(tasksLock) {
             tasks.entries.removeAll { it.value.status == DownloadTask.Status.COMPLETED }
         }
+        notifyProgressChanged()
     }
 
     fun clearTasks(taskIds: List<Long>) {
@@ -657,6 +676,57 @@ object AppDownloadManager {
         synchronized(tasksLock) {
             idSet.forEach { tasks.remove(it) }
         }
+        notifyProgressChanged()
+    }
+
+    private fun notifyProgressChanged() {
+        val activeTasks = tasks.values.filter {
+            it.status == DownloadTask.Status.DOWNLOADING || it.status == DownloadTask.Status.WAITING
+        }
+        val completedCount = tasks.values.count { it.status == DownloadTask.Status.COMPLETED }
+        val failedCount = tasks.values.count { it.status == DownloadTask.Status.FAILED }
+        val totalCount = tasks.size
+
+        _hasActiveDownloads.value = activeTasks.isNotEmpty()
+
+        if (activeTasks.isNotEmpty()) {
+            val downloading = activeTasks.filter { it.status == DownloadTask.Status.DOWNLOADING }
+            if (downloading.isNotEmpty()) {
+                _progressMessage.value = "下载中(${activeTasks.size}个任务) 已完成(${completedCount}个任务)"
+            } else {
+                _progressMessage.value = "等待下载(${activeTasks.size}个任务) 已完成(${completedCount}个任务)"
+            }
+        } else {
+            if (totalCount > 0) {
+                val sb = StringBuilder("下载完成, 共${totalCount}个文件\n")
+                if (failedCount > 0) sb.append("失败${failedCount}个文件\n")
+                if (completedCount > 0) sb.append("成功${completedCount}个文件")
+                _progressMessage.value = sb.toString()
+            } else {
+                _progressMessage.value = "当前没有要下载的任务"
+            }
+        }
+    }
+
+    private var isDownloadServiceRunning = false
+
+    fun startDownloadService(context: Context) {
+        if (isDownloadServiceRunning) return
+        isDownloadServiceRunning = true
+        val intent = Intent(context, DownloadService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            context.startForegroundService(intent)
+        } else {
+            context.startService(intent)
+        }
+    }
+
+    fun notifyDownloadServiceStopped() {
+        isDownloadServiceRunning = false
+    }
+
+    fun stopDownloadService(context: Context) {
+        context.stopService(Intent(context, DownloadService::class.java))
     }
 
     fun isDownloading(taskId: Long): Boolean {

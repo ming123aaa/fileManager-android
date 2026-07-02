@@ -56,7 +56,8 @@ fun ImageGlide(
     contentScale: ContentScale = ContentScale.Fit,
     alpha: Float = DefaultAlpha,
     colorFilter: ColorFilter? = null,
-    url: String
+    url: String,
+    isPlayGif: Boolean=true,
 ) {
     ImageGlide(
         modifier = modifier,
@@ -66,6 +67,7 @@ fun ImageGlide(
         alpha = alpha,
         colorFilter = colorFilter,
         key = url,
+        isPlayGif=isPlayGif,
         builder = {
             load(url)
         }
@@ -80,7 +82,8 @@ fun ImageGlide(
     contentScale: ContentScale = ContentScale.Fit,
     alpha: Float = DefaultAlpha,
     colorFilter: ColorFilter? = null,
-    id: Int
+    id: Int,
+    isPlayGif: Boolean=true
 ) {
     ImageGlide(
         modifier = modifier,
@@ -90,6 +93,7 @@ fun ImageGlide(
         alpha = alpha,
         colorFilter = colorFilter,
         key = id,
+        isPlayGif = isPlayGif,
         builder = {
             load(id)
         }
@@ -98,6 +102,7 @@ fun ImageGlide(
 
 @Composable
 fun ImageGlide(
+    isPlayGif: Boolean,
     contentDescription: String? = null,
     modifier: Modifier = Modifier,
     alignment: Alignment = Alignment.Center,
@@ -107,6 +112,7 @@ fun ImageGlide(
     key: Any? = null,
     builder: RequestBuilder<Drawable>.() -> RequestBuilder<Drawable>
 ) {
+
 
     var current = LocalContext.current
     var mPainter: MutableState<Painter> =
@@ -122,7 +128,9 @@ fun ImageGlide(
     val mInitDrawable = initDrawable.value
 
 
-    DisposableEffect(mInitDrawable) {
+
+
+    DisposableEffect(mInitDrawable,key) {
         onDispose {
             if (mInitDrawable is GifDrawable) {
                 mInitDrawable.stop()
@@ -130,19 +138,28 @@ fun ImageGlide(
             }
         }
     }
-    LaunchedEffect(mInitDrawable) {
+    LaunchedEffect(mInitDrawable,isPlayGif,key) {
         if (mInitDrawable != null) {
+            if ((mInitDrawable is GifDrawable)) {
+                if (isPlayGif) {
+                    val drawableCallBack =
+                        DrawableCallBack(onInvalidate = { mPainter.value = it.toPainter() })
+                    mInitDrawable.callback = drawableCallBack //设置的是一个弱引用
+                    saveDrawableCallback.value = drawableCallBack //因为设置的是一个弱引用，需要保存一下，否则会出现动图停止的情况
 
-            if (mInitDrawable is GifDrawable) {
-                val drawableCallBack =
-                    DrawableCallBack(onInvalidate = { mPainter.value = it.toPainter() })
-                mInitDrawable.callback = drawableCallBack //设置的是一个弱引用
-                saveDrawableCallback.value = drawableCallBack //因为设置的是一个弱引用，需要保存一下，否则会出现动图停止的情况
+                    if (!mInitDrawable.isRunning) {
+                        mInitDrawable.start()
+                    }
+                }else{
+                    mInitDrawable.firstFrame?.let {bitmap ->
+                        mPainter.value = BitmapPainter(image = bitmap.asImageBitmap())
+                    }
 
-                if (!mInitDrawable.isRunning) {
-                    mInitDrawable.start()
+                    mInitDrawable.callback=null
+                    if (mInitDrawable.isRunning) {
+                        mInitDrawable.stop()
+                    }
                 }
-
             } else {
                 mPainter.value = mInitDrawable.toPainter()
             }

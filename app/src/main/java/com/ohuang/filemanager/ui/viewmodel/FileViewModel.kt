@@ -707,11 +707,10 @@ class FileViewModel : ViewModel() {
         viewModelScope.launch {
             _isLoading.value = true
             val fileInfo = downloadFileInfo(file)
-            if (fileInfo == null) {
-                _isLoading.value = false
-            }else {
+            if (fileInfo != null) {
                 _downloadFile.value = file.copy(length = fileInfo.contentLength)
             }
+            _isLoading.value = false
             _showDownloadDialog.value = true
         }
 

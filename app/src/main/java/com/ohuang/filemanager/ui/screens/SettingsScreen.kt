@@ -65,6 +65,7 @@ import com.ohuang.filemanager.config.HttpConfig
 import com.ohuang.filemanager.data.ApiService
 import com.ohuang.filemanager.getDefaultServiceFilePath
 import com.ohuang.filemanager.getPrivateServiceFilePath
+import com.ohuang.filemanager.getServiceFilePath
 import com.ohuang.filemanager.getServicePort
 import com.ohuang.filemanager.service.UploadService
 import com.ohuang.filemanager.util.ClipboardUtils
@@ -319,6 +320,23 @@ private fun LocalService(context: Context) {
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text("本地服务端设置")
+        }
+
+        Spacer(modifier = Modifier.height(15.dp))
+
+        Button(
+            onClick = {
+                LocalFileManagerActivity.start(context, getServiceFilePath(context))
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(
+                imageVector = Icons.Default.Settings,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("本地文件管理")
         }
 
         Spacer(modifier = Modifier.height(15.dp))

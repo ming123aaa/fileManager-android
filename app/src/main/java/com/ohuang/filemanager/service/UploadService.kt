@@ -2,6 +2,7 @@ package com.ohuang.filemanager.service
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.net.Uri
@@ -54,19 +55,38 @@ class UploadService : Service() {
     var call: HttpCall<String>? = null
     var isCannel: Boolean = false
 
+    private fun getMainActivityPendingIntent(): PendingIntent {
+        val intent = packageManager.getLaunchIntentForPackage(packageName) ?: Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_LAUNCHER)
+            `package` = this@UploadService.packageName
+        }
+        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+        return PendingIntent.getActivity(
+            this, 0, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+
     private fun notifaction() {
         createNotificationChannel()
         val repliedNotification = NotificationCompat.Builder(this, CHANNEL_ID2)
-        repliedNotification.setSmallIcon(R.drawable.ic_launcher_foreground)
+        repliedNotification.setSmallIcon(R.mipmap.icon_app)
             .setContentText("当前没有要上传的任务").setContentTitle("上传进度")
+            .setContentIntent(getMainActivityPendingIntent())
+            .setAutoCancel(true)
+            .setOngoing(true)
+
         val notification = repliedNotification.build()
         startForeground(notifId_1, notification)
     }
 
     private fun showProgress(text: String) {
         val repliedNotification = NotificationCompat.Builder(this, CHANNEL_ID2)
-        repliedNotification.setSmallIcon(R.drawable.ic_launcher_foreground)
+        repliedNotification.setSmallIcon(R.mipmap.icon_app)
             .setContentText(text).setContentTitle("上传进度")
+            .setContentIntent(getMainActivityPendingIntent())
+            .setAutoCancel(true)
+            .setOngoing(true)
         val notification = repliedNotification.build()
         startForeground(notifId_1, notification)
     }

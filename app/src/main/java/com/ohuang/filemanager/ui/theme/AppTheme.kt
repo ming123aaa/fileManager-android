@@ -52,6 +52,7 @@ val DarkBlueColorScheme = darkColorScheme(
     onError = Color(0xFF000000),
     outline = Color(0xFF616161),
     outlineVariant = Color(0xFFBDBDBD),
+
 )
 
 @Composable

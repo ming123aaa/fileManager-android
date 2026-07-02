@@ -24,7 +24,9 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.bumptech.glide.Glide
 import com.ohuang.filemanager.data.FileItem
+import com.ohuang.filemanager.util.ImageGlide
 
 /**
  * 预览模式卡片组件，以更大的卡片展示文件，支持图片和视频缩略图预览
@@ -92,18 +94,19 @@ fun PreviewCard(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .aspectRatio(16f / 9f)
+                            .aspectRatio(16f / 12f)
                             .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)),
                         contentAlignment = Alignment.Center
                     ) {
                         when {
                             isImage -> {
                                 // 图片缩略图
-                                AsyncImage(
-                                    model = fileUrl,
+                                ImageGlide(
+                                    url = fileUrl,
                                     contentDescription = file.name,
                                     modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
+                                    contentScale = ContentScale.Crop,
+                                    isPlayGif = false
                                 )
                             }
                             isVideo -> {

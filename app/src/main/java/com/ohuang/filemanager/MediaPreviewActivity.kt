@@ -27,6 +27,7 @@ import androidx.compose.foundation.gestures.calculateRotation
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -40,6 +41,7 @@ import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.PagerSnapDistance
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FastForward
@@ -472,14 +474,16 @@ fun ZoomableImage(
         modifier = modifier
             .fillMaxSize()
             .onSizeChanged { size = it }
+
             .pointerInput(Unit) {
 
                 awaitTransformGestures({ scale >= 1.01 }) { _, pan, zoom, _ ->
                     val newScale = (scale * zoom).coerceIn(1f, 3f)
+                    val offsetScale=(1+(newScale-1)*0.5f).coerceIn(1f,1.5f)
                     val maxX = (size.width * (newScale - 1)) / 2
                     val maxY = (size.height * (newScale - 1)) / 2
-                    val newOffsetX = (offset.x + pan.x * newScale).coerceIn(-maxX, maxX)
-                    val newOffsetY = (offset.y + pan.y * newScale).coerceIn(-maxY, maxY)
+                    val newOffsetX = (offset.x + pan.x*offsetScale ).coerceIn(-maxX, maxX)
+                    val newOffsetY = (offset.y + pan.y*offsetScale ).coerceIn(-maxY, maxY)
                     scale = newScale
                     offset = Offset(newOffsetX, newOffsetY)
                 }
@@ -493,6 +497,11 @@ fun ZoomableImage(
                             offset = Offset.Zero
                         } else {
                             scale = 3f
+                            val maxX = (size.width * (scale - 1)) / 2
+                            val maxY = (size.height * (scale - 1)) / 2
+                            val newOffsetX =(scale*((size.width)/2-it.x)).coerceIn(-maxX, maxX)
+                            val newOffsetY = (scale*((size.height)/2-it.y)).coerceIn(-maxY, maxY)
+                            offset=Offset(newOffsetX,newOffsetY)
                         }
                     },
                     onTap = { onTap() }
