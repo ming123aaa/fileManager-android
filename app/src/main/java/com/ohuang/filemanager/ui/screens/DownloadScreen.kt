@@ -753,18 +753,24 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
                             .padding(vertical = 16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.FileCopy,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.secondary,
-                            modifier = Modifier.size(20.dp)
-                        )
+
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = "文件继续下载",
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                            modifier = Modifier.weight(1f)
-                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "断点续传",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
+                            )
+                            Text(
+                                text = "开启后，下载中断时可从已下载的部分继续，无需重新下载",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "注意：若服务端文件内容发生变更，可能导致续传后文件不完整或损坏",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
                         Switch(
                             checked = isContinueDownload,
                             onCheckedChange = { AppDownloadManager.setContinueDownload(it) },
@@ -781,12 +787,7 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
                             .padding(vertical = 16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.FileCopy,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.secondary,
-                            modifier = Modifier.size(20.dp)
-                        )
+
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
                             text = "覆盖已存在的文件",
@@ -811,18 +812,19 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
                             .padding(vertical = 16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.FileCopy,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.secondary,
-                            modifier = Modifier.size(20.dp)
-                        )
+
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = "下载文件夹时,忽略下载失败的文件",
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                            modifier = Modifier.weight(1f)
-                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "文件夹容错下载",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
+                            )
+                            Text(
+                                text = "开启后，文件夹下载中遇到失败的文件会自动跳过，继续下载其余文件",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                         Switch(
                             checked = folderFairContinue,
                             onCheckedChange = { AppDownloadManager.setFolderFairContinue(it) },
