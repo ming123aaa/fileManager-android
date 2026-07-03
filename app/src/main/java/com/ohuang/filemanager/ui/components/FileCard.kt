@@ -1,6 +1,5 @@
 package com.ohuang.filemanager.ui.components
 
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -39,6 +38,8 @@ fun FileCard(
     onToggleSelection: () -> Unit = {},
     // 上下文菜单相关
     showContextMenu: Boolean = false,
+    downloadEnable: Boolean,
+    readOnly: Boolean,
     onContextMenuDismiss: () -> Unit = {},
     onOpen: (FileItem) -> Unit = {},
     onPreview: (FileItem) -> Unit = {},
@@ -50,6 +51,7 @@ fun FileCard(
     onCopyLink: (FileItem) -> Unit = {},
     onOpenInNew: (FileItem) -> Unit = {}
 ) {
+
     Box {
         Card(
             modifier = Modifier
@@ -154,6 +156,7 @@ fun FileCard(
             }
         }
 
+
         // 上下文菜单 —— 放在 Box 内以锚定到当前卡片位置
         DropdownMenu(
             expanded = showContextMenu,
@@ -171,12 +174,15 @@ fun FileCard(
                         )
                     }
                 )
-                if (!isLocalFile) {
+                if (downloadEnable) {
                     DropdownMenuItem(
-                        text = { Text("下载") },
+                        text = { Text(if (isLocalFile) "导出" else "下载") },
                         onClick = { onDownload(file) },
                         leadingIcon = {
-                            Icon(Icons.Default.Download, contentDescription = null)
+                            Icon(
+                                if (isLocalFile) Icons.Default.Output else Icons.Default.Download,
+                                contentDescription = null
+                            )
                         }
                     )
                 }
@@ -198,7 +204,7 @@ fun FileCard(
                 }
             } else {
 
-                if (FileType.isEditStringType(file.name)&&!file.isWithinTextEditorLimit()) {
+                if (!readOnly&&FileType.isEditStringType(file.name)&&!file.isWithinTextEditorLimit()) {
                     DropdownMenuItem(
                         text = { Text("编辑") },
                         onClick = { onEditString(file) },
@@ -218,12 +224,15 @@ fun FileCard(
                     )
                 }
 
-                if (!isLocalFile) {
+                if (downloadEnable) {
                     DropdownMenuItem(
-                        text = { Text("下载") },
+                        text = { Text(if (isLocalFile) "导出" else "下载") },
                         onClick = { onDownload(file) },
                         leadingIcon = {
-                            Icon(Icons.Default.Download, contentDescription = null)
+                            Icon(
+                                if (isLocalFile) Icons.Default.Output else Icons.Default.Download,
+                                contentDescription = null
+                            )
                         }
                     )
                 }
@@ -243,36 +252,38 @@ fun FileCard(
                 )
             }
 
-            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+            if (!readOnly) {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
-            DropdownMenuItem(
-                text = { Text("重命名") },
-                onClick = { onRename(file) },
-                leadingIcon = {
-                    Icon(Icons.Default.Edit, contentDescription = null)
-                }
-            )
+                DropdownMenuItem(
+                    text = { Text("重命名") },
+                    onClick = { onRename(file) },
+                    leadingIcon = {
+                        Icon(Icons.Default.Edit, contentDescription = null)
+                    }
+                )
 
-            DropdownMenuItem(
-                text = { Text("移动") },
-                onClick = { onMove(file) },
-                leadingIcon = {
-                    Icon(Icons.Default.DriveFileMove, contentDescription = null)
-                }
-            )
+                DropdownMenuItem(
+                    text = { Text("移动") },
+                    onClick = { onMove(file) },
+                    leadingIcon = {
+                        Icon(Icons.Default.DriveFileMove, contentDescription = null)
+                    }
+                )
 
-            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
-            DropdownMenuItem(
-                text = { Text("删除") },
-                onClick = { onDelete(file) },
-                leadingIcon = {
-                    Icon(
-                        Icons.Default.Delete, contentDescription = null,
-                        tint = Color.Red
-                    )
-                }
-            )
+                DropdownMenuItem(
+                    text = { Text("删除") },
+                    onClick = { onDelete(file) },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Default.Delete, contentDescription = null,
+                            tint = Color.Red
+                        )
+                    }
+                )
+            }
         }
     }
 }

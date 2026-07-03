@@ -40,6 +40,8 @@ fun PreviewCard(
     onLongClick: () -> Unit = {},
     isSelected: Boolean = false,
     isLocalFile: Boolean,
+    downloadEnable: Boolean,
+    readOnly: Boolean,
     // 多选模式相关
     isMultiSelectMode: Boolean = false,
     onToggleSelection: () -> Unit = {},
@@ -109,6 +111,7 @@ fun PreviewCard(
                                     isPlayGif = false
                                 )
                             }
+
                             isVideo -> {
                                 // 视频缩略图（使用 MediaMetadataRetriever 提取视频帧）
                                 VideoThumbnail(
@@ -129,6 +132,7 @@ fun PreviewCard(
                                     )
                                 }
                             }
+
                             else -> {
                                 // 非图片/视频文件，显示文件图标
                                 Box(
@@ -137,7 +141,7 @@ fun PreviewCard(
                                         .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    FileIcon(file = file, size = 64.dp)
+                                    FileIcon(file = file, size = 84.dp)
                                 }
                             }
                         }
@@ -175,16 +179,16 @@ fun PreviewCard(
                         Spacer(modifier = Modifier.height(4.dp))
 
 
-                            Text(
-                                text = file.formatSize(),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = file.formatDate(),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        Text(
+                            text = file.formatSize(),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = file.formatDate(),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
 
                     }
                 }
@@ -240,12 +244,15 @@ fun PreviewCard(
                         )
                     }
                 )
-                if (!isLocalFile) {
+                if (downloadEnable) {
                     DropdownMenuItem(
-                        text = { Text("下载") },
+                        text = { Text(if (isLocalFile) "导出" else "下载") },
                         onClick = { onDownload(file) },
                         leadingIcon = {
-                            Icon(Icons.Default.Download, contentDescription = null)
+                            Icon(
+                                if (isLocalFile) Icons.Default.Output else Icons.Default.Download,
+                                contentDescription = null
+                            )
                         }
                     )
                 }
@@ -266,7 +273,8 @@ fun PreviewCard(
                     )
                 }
             } else {
-                if (FileType.isEditStringType(file.name) && !file.isWithinTextEditorLimit()) {
+
+                if (!readOnly && FileType.isEditStringType(file.name) && !file.isWithinTextEditorLimit()) {
                     DropdownMenuItem(
                         text = { Text("编辑") },
                         onClick = { onEditString(file) },
@@ -285,12 +293,16 @@ fun PreviewCard(
                         }
                     )
                 }
-                if (!isLocalFile) {
+
+                if (downloadEnable) {
                     DropdownMenuItem(
-                        text = { Text("下载") },
+                        text = { Text(if (isLocalFile) "导出" else "下载") },
                         onClick = { onDownload(file) },
                         leadingIcon = {
-                            Icon(Icons.Default.Download, contentDescription = null)
+                            Icon(
+                                if (isLocalFile) Icons.Default.Output else Icons.Default.Download,
+                                contentDescription = null
+                            )
                         }
                     )
                 }
@@ -310,36 +322,38 @@ fun PreviewCard(
                 )
             }
 
-            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+            if (!readOnly) {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
-            DropdownMenuItem(
-                text = { Text("重命名") },
-                onClick = { onRename(file) },
-                leadingIcon = {
-                    Icon(Icons.Default.Edit, contentDescription = null)
-                }
-            )
+                DropdownMenuItem(
+                    text = { Text("重命名") },
+                    onClick = { onRename(file) },
+                    leadingIcon = {
+                        Icon(Icons.Default.Edit, contentDescription = null)
+                    }
+                )
 
-            DropdownMenuItem(
-                text = { Text("移动") },
-                onClick = { onMove(file) },
-                leadingIcon = {
-                    Icon(Icons.Default.DriveFileMove, contentDescription = null)
-                }
-            )
+                DropdownMenuItem(
+                    text = { Text("移动") },
+                    onClick = { onMove(file) },
+                    leadingIcon = {
+                        Icon(Icons.Default.DriveFileMove, contentDescription = null)
+                    }
+                )
 
-            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
-            DropdownMenuItem(
-                text = { Text("删除") },
-                onClick = { onDelete(file) },
-                leadingIcon = {
-                    Icon(
-                        Icons.Default.Delete, contentDescription = null,
-                        tint = Color.Red
-                    )
-                }
-            )
+                DropdownMenuItem(
+                    text = { Text("删除") },
+                    onClick = { onDelete(file) },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Default.Delete, contentDescription = null,
+                            tint = Color.Red
+                        )
+                    }
+                )
+            }
         }
     }
 }

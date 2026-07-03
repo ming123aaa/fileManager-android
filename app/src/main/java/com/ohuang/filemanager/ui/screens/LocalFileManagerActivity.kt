@@ -26,6 +26,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.DriveFileMove
+import androidx.compose.material.icons.filled.Output
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -37,9 +41,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ohuang.filemanager.MediaFileInfo
 import com.ohuang.filemanager.MediaPreviewActivity
+import com.ohuang.filemanager.data.AppDownloadManager.getDownloadDir
 import com.ohuang.filemanager.data.FileItem
 import com.ohuang.filemanager.ui.components.*
 import com.ohuang.filemanager.ui.theme.FileManagerTheme
+import com.ohuang.filemanager.ui.utils.DeviceType
+import com.ohuang.filemanager.ui.utils.rememberDeviceType
 import com.ohuang.filemanager.ui.viewmodel.FilterMode
 import com.ohuang.filemanager.ui.viewmodel.FolderTreeNode
 import com.ohuang.filemanager.ui.viewmodel.SortBy
@@ -109,6 +116,15 @@ class LocalFileViewModel(private val rootDir: String, initialSubDir: String?) : 
     private val _showBatchMoveDialog = MutableStateFlow(false)
     val showBatchMoveDialog: StateFlow<Boolean> = _showBatchMoveDialog
 
+
+    // 导出相关状态
+    private val _showExportDialog = MutableStateFlow(false)
+    val showExportDialog: StateFlow<Boolean> = _showExportDialog
+    private val _exportFile = MutableStateFlow<FileItem?>(null)
+    val exportFile: StateFlow<FileItem?> = _exportFile
+    private val _showBatchExportDialog = MutableStateFlow(false)
+    val showBatchExportDialog: StateFlow<Boolean> = _showBatchExportDialog
+
     // 当前操作的文件
     private val _previewFile = MutableStateFlow<FileItem?>(null)
     val previewFile: StateFlow<FileItem?> = _previewFile
@@ -129,7 +145,7 @@ class LocalFileViewModel(private val rootDir: String, initialSubDir: String?) : 
     private val lazyGridStateMap = mutableMapOf<String, LazyGridState>()
     private var currentRelativePath: String = initialSubDir?.trim('/').orEmpty()
 
-     val rootName: String
+    val rootName: String
         get() = rootDir.substringAfterLast("/").ifEmpty { rootDir }
     private val absoluteDir: String
         get() = if (currentRelativePath.isEmpty()) rootDir else "$rootDir/$currentRelativePath"
@@ -137,7 +153,8 @@ class LocalFileViewModel(private val rootDir: String, initialSubDir: String?) : 
     fun getFullPath(file: FileItem): String = "$absoluteDir/${file.name}"
     fun canGoUp(): Boolean = currentRelativePath.isNotEmpty()
 
-    fun getLazyGridState(): LazyGridState = lazyGridStateMap.getOrPut(_currentPath.value) { LazyGridState() }
+    fun getLazyGridState(): LazyGridState =
+        lazyGridStateMap.getOrPut(_currentPath.value) { LazyGridState() }
 
     init {
         loadFiles()
@@ -149,8 +166,8 @@ class LocalFileViewModel(private val rootDir: String, initialSubDir: String?) : 
         viewModelScope.launch { loadFilesInternal() }
     }
 
-    private suspend fun loadFilesInternal(isRefresh: Boolean=false) {
-        if (isRefresh){
+    private suspend fun loadFilesInternal(isRefresh: Boolean = false) {
+        if (isRefresh) {
             delay(500)
         }
         _isLoading.value = true
@@ -161,8 +178,14 @@ class LocalFileViewModel(private val rootDir: String, initialSubDir: String?) : 
             withContext(Dispatchers.IO) {
                 val dir = File(absoluteDir)
                 when {
-                    !dir.exists() -> { _errorMessage.value = "目录不存在: $absoluteDir"; hasError = true }
-                    !dir.isDirectory -> { _errorMessage.value = "路径不是目录: $absoluteDir"; hasError = true }
+                    !dir.exists() -> {
+                        _errorMessage.value = "目录不存在: $absoluteDir"; hasError = true
+                    }
+
+                    !dir.isDirectory -> {
+                        _errorMessage.value = "路径不是目录: $absoluteDir"; hasError = true
+                    }
+
                     else -> {
                         allFiles = (dir.listFiles() ?: emptyArray()).map { f ->
                             FileItem(
@@ -213,22 +236,26 @@ class LocalFileViewModel(private val rootDir: String, initialSubDir: String?) : 
             SortBy.SIZE -> compareBy { it.length }
             SortBy.DATE -> compareBy { it.lastModified }
         }
-        val ordered = if (_sortDirection.value == SortDirection.DESC) comparator.reversed() else comparator
-        _files.value = filtered.sortedWith(compareByDescending<FileItem> { it.isFolder }.then(ordered))
+        val ordered =
+            if (_sortDirection.value == SortDirection.DESC) comparator.reversed() else comparator
+        _files.value =
+            filtered.sortedWith(compareByDescending<FileItem> { it.isFolder }.then(ordered))
     }
 
     // ==================== 导航 ====================
 
     fun navigateToFolder(file: FileItem) {
         if (!file.isFolder) return
-        currentRelativePath = if (currentRelativePath.isEmpty()) file.name else "$currentRelativePath/${file.name}"
+        currentRelativePath =
+            if (currentRelativePath.isEmpty()) file.name else "$currentRelativePath/${file.name}"
         _selectedFile.value = null
         viewModelScope.launch { loadFilesInternal() }
     }
 
     fun goUp() {
         if (currentRelativePath.isEmpty()) return
-        currentRelativePath = currentRelativePath.split("/").filter { it.isNotEmpty() }.dropLast(1).joinToString("/")
+        currentRelativePath =
+            currentRelativePath.split("/").filter { it.isNotEmpty() }.dropLast(1).joinToString("/")
         _selectedFile.value = null
         viewModelScope.launch { loadFilesInternal() }
     }
@@ -240,28 +267,49 @@ class LocalFileViewModel(private val rootDir: String, initialSubDir: String?) : 
 
     // ==================== 状态设置 ====================
 
-    fun setSelectedFile(file: FileItem?) { _selectedFile.value = file }
-    fun setSearchQuery(query: String) { _searchQuery.value = query; applyFilters() }
-    fun setFilterMode(mode: FilterMode) { _filterMode.value = mode; applyFilters() }
-    fun setSortBy(sortBy: SortBy) { _sortBy.value = sortBy; applyFilters() }
-    fun setSortDirection(direction: SortDirection) { _sortDirection.value = direction; applyFilters() }
+    fun setSelectedFile(file: FileItem?) {
+        _selectedFile.value = file
+    }
+
+    fun setSearchQuery(query: String) {
+        _searchQuery.value = query; applyFilters()
+    }
+
+    fun setFilterMode(mode: FilterMode) {
+        _filterMode.value = mode; applyFilters()
+    }
+
+    fun setSortBy(sortBy: SortBy) {
+        _sortBy.value = sortBy; applyFilters()
+    }
+
+    fun setSortDirection(direction: SortDirection) {
+        _sortDirection.value = direction; applyFilters()
+    }
+
     fun toggleSortDirection() {
-        _sortDirection.value = if (_sortDirection.value == SortDirection.ASC) SortDirection.DESC else SortDirection.ASC
+        _sortDirection.value =
+            if (_sortDirection.value == SortDirection.ASC) SortDirection.DESC else SortDirection.ASC
         applyFilters()
     }
-    fun setViewMode(mode: ViewMode) { _viewMode.value = mode }
+
+    fun setViewMode(mode: ViewMode) {
+        _viewMode.value = mode
+    }
 
     fun loadSortState(context: Context) {
         runCatching {
             _sortBy.value = SortBy.valueOf(SPUtil.get(context, "lfm_sortBy", "NAME") as String)
-            _sortDirection.value = SortDirection.valueOf(SPUtil.get(context, "lfm_sortDir", "ASC") as String)
+            _sortDirection.value =
+                SortDirection.valueOf(SPUtil.get(context, "lfm_sortDir", "ASC") as String)
         }
         applyFilters()
     }
 
     fun loadViewModeState(context: Context) {
         runCatching {
-            _viewMode.value = ViewMode.valueOf(SPUtil.get(context, "lfm_viewMode", "GRID") as String)
+            _viewMode.value =
+                ViewMode.valueOf(SPUtil.get(context, "lfm_viewMode", "GRID") as String)
         }
     }
 
@@ -279,7 +327,9 @@ class LocalFileViewModel(private val rootDir: String, initialSubDir: String?) : 
                 _showMkdirDialog.value = false
                 showToastMessage("文件夹创建成功")
                 loadFilesInternal()
-            } catch (e: Exception) { showToastMessage(e.message ?: "创建失败") }
+            } catch (e: Exception) {
+                showToastMessage(e.message ?: "创建失败")
+            }
         }
     }
 
@@ -295,7 +345,9 @@ class LocalFileViewModel(private val rootDir: String, initialSubDir: String?) : 
                 _showCreateFileDialog.value = false
                 showToastMessage("文件创建成功")
                 loadFilesInternal()
-            } catch (e: Exception) { showToastMessage(e.message ?: "创建失败") }
+            } catch (e: Exception) {
+                showToastMessage(e.message ?: "创建失败")
+            }
         }
     }
 
@@ -306,12 +358,16 @@ class LocalFileViewModel(private val rootDir: String, initialSubDir: String?) : 
                 withContext(Dispatchers.IO) {
                     val newFile = File(absoluteDir, newName)
                     if (newFile.exists()) return@withContext showToastMessage("目标名称已存在")
-                    if (!File(getFullPath(file)).renameTo(newFile)) return@withContext showToastMessage("重命名失败")
+                    if (!File(getFullPath(file)).renameTo(newFile)) return@withContext showToastMessage(
+                        "重命名失败"
+                    )
                 }
                 _showRenameDialog.value = false
                 showToastMessage("重命名成功")
                 loadFilesInternal()
-            } catch (e: Exception) { showToastMessage(e.message ?: "重命名失败") }
+            } catch (e: Exception) {
+                showToastMessage(e.message ?: "重命名失败")
+            }
         }
     }
 
@@ -327,7 +383,9 @@ class LocalFileViewModel(private val rootDir: String, initialSubDir: String?) : 
                 _showDeleteDialog.value = false
                 showToastMessage(if (file.isFolder) "文件夹删除成功" else "文件删除成功")
                 loadFilesInternal()
-            } catch (e: Exception) { showToastMessage(e.message ?: "删除失败") }
+            } catch (e: Exception) {
+                showToastMessage(e.message ?: "删除失败")
+            }
         }
     }
 
@@ -336,17 +394,71 @@ class LocalFileViewModel(private val rootDir: String, initialSubDir: String?) : 
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) {
-                    val targetDir = if (targetRelativePath.isEmpty()) File(rootDir) else File("$rootDir/$targetRelativePath")
+                    val targetDir =
+                        if (targetRelativePath.isEmpty()) File(rootDir) else File("$rootDir/$targetRelativePath")
                     val dest = File(targetDir, file.name)
                     if (dest.exists()) return@withContext showToastMessage("目标位置已存在同名文件")
-                    if (!File(getFullPath(file)).renameTo(dest)) return@withContext showToastMessage("移动失败（可能跨存储设备）")
+                    if (!File(getFullPath(file)).renameTo(dest)) return@withContext showToastMessage(
+                        "移动失败（可能跨存储设备）"
+                    )
                 }
                 _showMoveDialog.value = false
                 _showBatchMoveDialog.value = false
                 showToastMessage("移动成功")
                 loadFilesInternal()
-            } catch (e: Exception) { showToastMessage(e.message ?: "移动失败") }
+            } catch (e: Exception) {
+                showToastMessage(e.message ?: "移动失败")
+            }
         }
+    }
+
+    // ==================== 导入功能 ====================
+
+    /** 将选中的 URI 文件导入到当前目录 */
+    fun importFiles(context: Context, uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        viewModelScope.launch {
+            _showLoadingDialog.value = true
+            var successCount = 0
+            var failCount = 0
+            withContext(Dispatchers.IO) {
+                for (uri in uris) {
+                    try {
+                        val fileName = getFileNameFromUri(context, uri) ?: "unknown_$successCount"
+                        val dest = File(absoluteDir, fileName)
+                        val inputStream = context.contentResolver.openInputStream(uri)
+                        if (inputStream == null) {
+                            failCount++; continue
+                        }
+                        inputStream.use { input ->
+                            dest.outputStream().use { output ->
+                                input.copyTo(output)
+                            }
+                        }
+                        successCount++
+                    } catch (_: Exception) {
+                        failCount++
+                    }
+                }
+            }
+            _showLoadingDialog.value = false
+            showToastMessage(formatBatchResult("导入", successCount, failCount))
+            loadFilesInternal()
+        }
+    }
+
+    private fun getFileNameFromUri(context: Context, uri: Uri): String? {
+        var name: String? = null
+        if (uri.scheme == "content") {
+            context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val idx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (idx >= 0) name = cursor.getString(idx)
+                }
+            }
+        }
+        if (name == null) name = uri.lastPathSegment
+        return name
     }
 
     // ==================== 文本编辑 ====================
@@ -358,8 +470,14 @@ class LocalFileViewModel(private val rootDir: String, initialSubDir: String?) : 
                 val content = withContext(Dispatchers.IO) {
                     val f = File(getFullPath(file))
                     when {
-                        !f.exists() -> { showToastMessage("文件不存在"); null }
-                        f.length() >= 100 * 1024 -> { showToastMessage("文件过大，请下载后编辑"); null }
+                        !f.exists() -> {
+                            showToastMessage("文件不存在"); null
+                        }
+
+                        f.length() >= 100 * 1024 -> {
+                            showToastMessage("文件过大，请下载后编辑"); null
+                        }
+
                         else -> f.readText(Charsets.UTF_8)
                     }
                 }
@@ -381,7 +499,12 @@ class LocalFileViewModel(private val rootDir: String, initialSubDir: String?) : 
         _isLoading.value = true
         viewModelScope.launch {
             try {
-                withContext(Dispatchers.IO) { File(getFullPath(file)).writeText(content, Charsets.UTF_8) }
+                withContext(Dispatchers.IO) {
+                    File(getFullPath(file)).writeText(
+                        content,
+                        Charsets.UTF_8
+                    )
+                }
                 _isLoading.value = false
                 _showEditDialog.value = false
                 showToastMessage("保存成功")
@@ -395,13 +518,14 @@ class LocalFileViewModel(private val rootDir: String, initialSubDir: String?) : 
     // ==================== 文件夹树 ====================
 
     /** 列出指定目录下的子文件夹 */
-    private suspend fun listSubFolders(dirPath: String): List<FileItem> = withContext(Dispatchers.IO) {
-        val dir = if (dirPath.isEmpty()) File(rootDir) else File("$rootDir/$dirPath")
-        if (!dir.exists() || !dir.isDirectory) return@withContext emptyList()
-        (dir.listFiles() ?: emptyArray())
-            .filter { it.isDirectory }
-            .map { FileItem(it.name, 0L, true, it.lastModified()) }
-    }
+    private suspend fun listSubFolders(dirPath: String): List<FileItem> =
+        withContext(Dispatchers.IO) {
+            val dir = if (dirPath.isEmpty()) File(rootDir) else File("$rootDir/$dirPath")
+            if (!dir.exists() || !dir.isDirectory) return@withContext emptyList()
+            (dir.listFiles() ?: emptyArray())
+                .filter { it.isDirectory }
+                .map { FileItem(it.name, 0L, true, it.lastModified()) }
+        }
 
     fun loadFolderTree(dirRelativePath: String) {
         viewModelScope.launch {
@@ -471,7 +595,8 @@ class LocalFileViewModel(private val rootDir: String, initialSubDir: String?) : 
             it.copy(
                 hasSubfolders = folders.isNotEmpty(),
                 children = folders.map { f ->
-                    val path = if (dirRelativePath.isEmpty()) f.name else "$dirRelativePath/${f.name}"
+                    val path =
+                        if (dirRelativePath.isEmpty()) f.name else "$dirRelativePath/${f.name}"
                     FolderTreeNode(path = path, name = f.name)
                 }
             )
@@ -497,11 +622,21 @@ class LocalFileViewModel(private val rootDir: String, initialSubDir: String?) : 
         }
     }
 
-    fun selectAllFiles() { _selectedFiles.value = _files.value.toSet() }
-    fun deselectAllFiles() { _selectedFiles.value = emptySet() }
+    fun selectAllFiles() {
+        _selectedFiles.value = _files.value.toSet()
+    }
 
-    fun showBatchDeleteDialog() { if (_selectedFiles.value.isNotEmpty()) _showBatchDeleteDialog.value = true }
-    fun hideBatchDeleteDialog() { _showBatchDeleteDialog.value = false }
+    fun deselectAllFiles() {
+        _selectedFiles.value = emptySet()
+    }
+
+    fun showBatchDeleteDialog() {
+        if (_selectedFiles.value.isNotEmpty()) _showBatchDeleteDialog.value = true
+    }
+
+    fun hideBatchDeleteDialog() {
+        _showBatchDeleteDialog.value = false
+    }
 
     fun showBatchMoveDialog() {
         if (_selectedFiles.value.isNotEmpty()) {
@@ -510,10 +645,99 @@ class LocalFileViewModel(private val rootDir: String, initialSubDir: String?) : 
             loadFolderTree("")
         }
     }
+
     fun hideBatchMoveDialog() {
         _showBatchMoveDialog.value = false
         _moveTargetPath.value = ""
         _folderTree.value = emptyList()
+    }
+
+    // ==================== 导出功能 ====================
+
+    fun showExportDialog(file: FileItem) {
+        _exportFile.value = file
+        _showExportDialog.value = true
+    }
+
+    fun hideExportDialog() {
+        _showExportDialog.value = false
+        _exportFile.value = null
+    }
+
+    fun showBatchExportDialog() {
+        if (_selectedFiles.value.isNotEmpty()) _showBatchExportDialog.value = true
+    }
+
+    fun hideBatchExportDialog() {
+        _showBatchExportDialog.value = false
+    }
+
+    /** 导出单个文件/文件夹到 Download/fileManager 目录 */
+    fun exportFile(context: Context, file: FileItem) {
+        if (_isLoading.value) return
+        viewModelScope.launch {
+            _showExportDialog.value = false
+            _showLoadingDialog.value = true
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    val src = File(getFullPath(file))
+                    if (!src.exists()) return@withContext "源文件不存在"
+                    val downloadDir = File(
+                        Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                        "fileManager"
+                    )
+                    if (!downloadDir.exists()) downloadDir.mkdirs()
+                    val dest = File(downloadDir, file.name)
+                    if (file.isFolder) {
+                        src.copyRecursively(dest, overwrite = false)
+                    } else {
+                        src.copyTo(dest, overwrite = false)
+                    }
+                    "已导出到: ${dest.absolutePath}"
+                }
+                _showLoadingDialog.value = false
+                showToastMessage(result)
+            } catch (e: Exception) {
+                _showLoadingDialog.value = false
+                showToastMessage("导出失败: ${e.message}")
+            }
+        }
+    }
+
+    /** 批量导出文件到 Download/fileManager 目录 */
+    fun exportSelectedFiles(context: Context) {
+        if (_isLoading.value || _selectedFiles.value.isEmpty()) return
+        viewModelScope.launch {
+            _showBatchExportDialog.value = false
+            _showLoadingDialog.value = true
+            var successCount = 0
+            var failCount = 0
+            withContext(Dispatchers.IO) {
+                val downloadDir = File(
+                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                    "fileManager"
+                )
+                if (!downloadDir.exists()) downloadDir.mkdirs()
+                for (file in _selectedFiles.value) {
+                    try {
+                        val src = File(getFullPath(file))
+                        val dest = File(downloadDir, file.name)
+                        if (file.isFolder) {
+                            src.copyRecursively(dest, overwrite = false)
+                        } else {
+                            src.copyTo(dest, overwrite = false)
+                        }
+                        successCount++
+                    } catch (_: Exception) {
+                        failCount++
+                    }
+                }
+            }
+            _showLoadingDialog.value = false
+            showToastMessage(formatBatchResult("导出", successCount, failCount))
+            _selectedFiles.value = emptySet()
+            _isMultiSelectMode.value = false
+        }
     }
 
     fun deleteSelectedFiles() {
@@ -526,7 +750,9 @@ class LocalFileViewModel(private val rootDir: String, initialSubDir: String?) : 
                     try {
                         val target = File(getFullPath(file))
                         if (target.exists() && target.deleteRecursively()) successCount++ else failCount++
-                    } catch (_: Exception) { failCount++ }
+                    } catch (_: Exception) {
+                        failCount++
+                    }
                 }
             }
             _showBatchDeleteDialog.value = false
@@ -543,13 +769,16 @@ class LocalFileViewModel(private val rootDir: String, initialSubDir: String?) : 
             var successCount = 0
             var failCount = 0
             withContext(Dispatchers.IO) {
-                val targetDir = if (targetRelativePath.isEmpty()) File(rootDir) else File("$rootDir/$targetRelativePath")
+                val targetDir =
+                    if (targetRelativePath.isEmpty()) File(rootDir) else File("$rootDir/$targetRelativePath")
                 for (file in _selectedFiles.value) {
                     try {
                         val src = File(getFullPath(file))
                         val dest = File(targetDir, file.name)
                         if (dest.exists() || !src.renameTo(dest)) failCount++ else successCount++
-                    } catch (_: Exception) { failCount++ }
+                    } catch (_: Exception) {
+                        failCount++
+                    }
                 }
             }
             _showBatchMoveDialog.value = false
@@ -569,39 +798,78 @@ class LocalFileViewModel(private val rootDir: String, initialSubDir: String?) : 
 
     // ==================== 对话框控制 ====================
 
-    fun showMkdirDialog() { _showMkdirDialog.value = true }
-    fun hideMkdirDialog() { _showMkdirDialog.value = false }
-    fun showCreateFileDialog() { _showCreateFileDialog.value = true }
-    fun hideCreateFileDialog() { _showCreateFileDialog.value = false }
-    fun showRenameDialog(file: FileItem) { _renameFile.value = file; _showRenameDialog.value = true }
-    fun hideRenameDialog() { _showRenameDialog.value = false; _renameFile.value = null }
-    fun showDeleteDialog(file: FileItem) { _deleteFile.value = file; _showDeleteDialog.value = true }
-    fun hideDeleteDialog() { _showDeleteDialog.value = false; _deleteFile.value = null }
+    fun showMkdirDialog() {
+        _showMkdirDialog.value = true
+    }
+
+    fun hideMkdirDialog() {
+        _showMkdirDialog.value = false
+    }
+
+    fun showCreateFileDialog() {
+        _showCreateFileDialog.value = true
+    }
+
+    fun hideCreateFileDialog() {
+        _showCreateFileDialog.value = false
+    }
+
+    fun showRenameDialog(file: FileItem) {
+        _renameFile.value = file; _showRenameDialog.value = true
+    }
+
+    fun hideRenameDialog() {
+        _showRenameDialog.value = false; _renameFile.value = null
+    }
+
+    fun showDeleteDialog(file: FileItem) {
+        _deleteFile.value = file; _showDeleteDialog.value = true
+    }
+
+    fun hideDeleteDialog() {
+        _showDeleteDialog.value = false; _deleteFile.value = null
+    }
+
     fun showMoveDialog(file: FileItem) {
         _moveFile.value = file
         _moveTargetPath.value = ""
         _showMoveDialog.value = true
         loadFolderTree("")
     }
+
     fun hideMoveDialog() {
         _showMoveDialog.value = false
         _moveFile.value = null
         _moveTargetPath.value = ""
         _folderTree.value = emptyList()
     }
-    fun setMoveTargetPath(path: String) { _moveTargetPath.value = path }
-    fun showLoadingDialog() { _showLoadingDialog.value = true }
-    fun hideLoadingDialog() { _showLoadingDialog.value = false }
+
+    fun setMoveTargetPath(path: String) {
+        _moveTargetPath.value = path
+    }
+
+    fun showLoadingDialog() {
+        _showLoadingDialog.value = true
+    }
+
+    fun hideLoadingDialog() {
+        _showLoadingDialog.value = false
+    }
+
     fun hideEditDialog() {
         _showEditDialog.value = false
         _previewFile.value = null
         _editFileContent.value = ""
     }
+
     fun showToastMessage(message: String) {
         _showToast.value = message
         viewModelScope.launch { delay(2000); _showToast.value = null }
     }
-    fun hideToastMessage() { _showToast.value = null }
+
+    fun hideToastMessage() {
+        _showToast.value = null
+    }
 }
 
 // ============================================================
@@ -620,6 +888,8 @@ private fun buildMediaFileList(
 @Composable
 fun LocalFileManagerScreen(
     viewModel: LocalFileViewModel,
+    downloadEnable: Boolean,
+    readOnly: Boolean,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -699,10 +969,25 @@ fun LocalFileManagerScreen(
     val folderTree by viewModel.folderTree.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
 
+    // 导出相关状态
+    val showExportDialog by viewModel.showExportDialog.collectAsState()
+    val exportFile by viewModel.exportFile.collectAsState()
+    val showBatchExportDialog by viewModel.showBatchExportDialog.collectAsState()
+
+    // 导入文件选择器
+    val importFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris: List<Uri> ->
+        if (uris.isNotEmpty()) {
+            viewModel.importFiles(context, uris)
+        }
+    }
+
     val isMultiSelectMode by viewModel.isMultiSelectMode.collectAsState()
     val selectedFiles by viewModel.selectedFiles.collectAsState()
     val showBatchDeleteDialog by viewModel.showBatchDeleteDialog.collectAsState()
     val showBatchMoveDialog by viewModel.showBatchMoveDialog.collectAsState()
+
     var pendingApkFile by remember { mutableStateOf<File?>(null) }
     Scaffold(
         topBar = {
@@ -714,18 +999,24 @@ fun LocalFileManagerScreen(
                             onValueChange = { viewModel.setSearchQuery(it) },
                             placeholder = { Text("文件查找...") },
                             leadingIcon = {
-                                Icon(Icons.Default.Search, contentDescription = "Search",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Icon(
+                                    Icons.Default.Search, contentDescription = "Search",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             },
                             trailingIcon = {
                                 if (searchQuery.isNotEmpty()) {
                                     IconButton(onClick = { viewModel.setSearchQuery("") }) {
-                                        Icon(Icons.Default.Clear, contentDescription = "Clear",
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Icon(
+                                            Icons.Default.Clear, contentDescription = "Clear",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
                                     }
                                 }
                             },
-                            modifier = Modifier.fillMaxWidth().padding(end = 8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(end = 8.dp),
                             shape = RoundedCornerShape(12.dp),
                             singleLine = true
                         )
@@ -747,7 +1038,10 @@ fun LocalFileManagerScreen(
                     onDeselectAll = { viewModel.deselectAllFiles() },
                     onDelete = { viewModel.showBatchDeleteDialog() },
                     onMove = { viewModel.showBatchMoveDialog() },
-                    onCancel = { viewModel.exitMultiSelectMode() }
+                    onExport = { viewModel.showBatchExportDialog() },
+                    onCancel = { viewModel.exitMultiSelectMode() },
+                    downloadEnable = downloadEnable,
+                    readOnly = readOnly,
                 )
             }
         }
@@ -771,7 +1065,9 @@ fun LocalFileManagerScreen(
                         viewModel.toggleSortDirection()
                         SPUtil.put(context, "lfm_sortDir", viewModel.sortDirection.value.name)
                     },
-                    onUploadClick = {},
+                    onUploadClick = {
+                        importFileLauncher.launch(arrayOf("*/*"))
+                    },
                     onCreateFolderClick = { viewModel.showMkdirDialog() },
                     onCreateFileClick = { viewModel.showCreateFileDialog() },
                     onGoUpClick = { viewModel.goUp() },
@@ -783,7 +1079,9 @@ fun LocalFileManagerScreen(
                     },
                     isMultiSelectMode = isMultiSelectMode,
                     onToggleMultiSelectMode = { viewModel.toggleMultiSelectMode() },
-                    isLocalFile=true
+                    isLocalFile = true,
+                    downloadEnable = downloadEnable,
+                    readOnly=readOnly
                 )
 
                 Divider()
@@ -799,7 +1097,11 @@ fun LocalFileManagerScreen(
 
                 Divider()
 
-                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                ) {
                     var lazyGridState by remember { mutableStateOf(LazyGridState()) }
                     val coroutineScope = rememberCoroutineScope()
 
@@ -808,8 +1110,10 @@ fun LocalFileManagerScreen(
                         selectedFile = selectedFile,
                         isRefreshing = isRefreshing,
                         lazyGridState = lazyGridState,
+
                         viewMode = viewMode,
                         isLocalFile = true,
+
                         getFileUrl = { file -> viewModel.getFullPath(file) },
                         onRefresh = {
                             coroutineScope.launch {
@@ -823,31 +1127,39 @@ fun LocalFileManagerScreen(
                         onFileClick = { file ->
                             handleFileClick(file, files, viewModel, context) { apkFile ->
                                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O &&
-                                    !context.packageManager.canRequestPackageInstalls()) {
+                                    !context.packageManager.canRequestPackageInstalls()
+                                ) {
                                     pendingApkFile = apkFile
                                 } else {
                                     openFileInExternalApp(apkFile, context)
                                 }
                             }
                         },
-                        onPreview = { file ->  },
+                        onPreview = { file -> },
                         onEditString = { file -> viewModel.readFileContent(file) },
                         onDownload = { file ->
-                            Toast.makeText(context, "本地文件无需下载: ${file.getFileName()}", Toast.LENGTH_SHORT).show()
+                            viewModel.showExportDialog(file)
                         },
                         onRename = { file -> viewModel.showRenameDialog(file) },
                         onDelete = { file -> viewModel.showDeleteDialog(file) },
                         onMove = { file -> viewModel.showMoveDialog(file) },
                         onCopyLink = { file ->
-                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            clipboard.setPrimaryClip(ClipData.newPlainText("file_path", viewModel.getFullPath(file)))
+                            val clipboard =
+                                context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            clipboard.setPrimaryClip(
+                                ClipData.newPlainText(
+                                    "file_path",
+                                    viewModel.getFullPath(file)
+                                )
+                            )
                             Toast.makeText(context, "路径已复制到剪贴板", Toast.LENGTH_SHORT).show()
                         },
                         onOpenInNew = { file ->
                             val f = File(viewModel.getFullPath(file))
                             if (file.name.endsWith(".apk", ignoreCase = true) &&
                                 android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O &&
-                                !context.packageManager.canRequestPackageInstalls()) {
+                                !context.packageManager.canRequestPackageInstalls()
+                            ) {
                                 pendingApkFile = f
                             } else {
                                 openFileInExternalApp(f, context)
@@ -855,7 +1167,8 @@ fun LocalFileManagerScreen(
                         },
                         isMultiSelectMode = isMultiSelectMode,
                         selectedFiles = selectedFiles,
-                        onToggleFileSelection = { file -> viewModel.toggleFileSelection(file) }
+                        onToggleFileSelection = { file -> viewModel.toggleFileSelection(file) },
+                        downloadEnable = downloadEnable, readOnly = readOnly,
                     )
 
                     var isShowLoading by remember { mutableStateOf(false) }
@@ -874,7 +1187,11 @@ fun LocalFileManagerScreen(
                     }
 
                     if (isShowLoading) {
-                        Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(MaterialTheme.colorScheme.background)
+                        ) {
                             CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                         }
                     }
@@ -887,43 +1204,110 @@ fun LocalFileManagerScreen(
 
             showToast?.let {
                 Snackbar(
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp),
-                    action = { TextButton(onClick = { viewModel.hideToastMessage() }) { Text("关闭", color = MaterialTheme.colorScheme.primary) } }
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(16.dp),
+                    action = {
+                        TextButton(onClick = { viewModel.hideToastMessage() }) {
+                            Text(
+                                "关闭",
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
                 ) { Text(it, color = MaterialTheme.colorScheme.onPrimary) }
             }
         }
     }
 
-    // 对话框
-    CreateFolderDialog(show = showMkdirDialog, onDismiss = { viewModel.hideMkdirDialog() }, onCreate = { viewModel.createFolder(it) })
-    CreateFileDialog(show = showCreateFileDialog, onDismiss = { viewModel.hideCreateFileDialog() }, onCreate = { viewModel.createFile(it) })
-    RenameDialog(show = showRenameDialog, file = renameFile, onDismiss = { viewModel.hideRenameDialog() },
-        onRename = { newName -> renameFile?.let { viewModel.renameFile(it, newName) } })
-    DeleteDialog(show = showDeleteDialog, file = deleteFile, onDismiss = { viewModel.hideDeleteDialog() },
-        onDelete = { deleteFile?.let { viewModel.deleteFile(it) } })
-    MoveDialog(show = showMoveDialog, file = moveFile, folderTree = folderTree, selectedPath = moveTargetPath,
-        onDismiss = { viewModel.hideMoveDialog() },
-        onMove = { targetPath -> moveFile?.let { viewModel.moveFile(it, targetPath) } },
-        onToggleFolder = { node -> viewModel.toggleFolder(node) },
-        onSelectPath = { path -> viewModel.setMoveTargetPath(path) })
-    EditDialog(show = showEditDialog, file = previewFile, content = editFileContent,
+    if (!readOnly) {
+        // 对话框
+        CreateFolderDialog(
+            show = showMkdirDialog,
+            onDismiss = { viewModel.hideMkdirDialog() },
+            onCreate = { viewModel.createFolder(it) })
+        CreateFileDialog(
+            show = showCreateFileDialog,
+            onDismiss = { viewModel.hideCreateFileDialog() },
+            onCreate = { viewModel.createFile(it) })
+        RenameDialog(
+            show = showRenameDialog,
+            file = renameFile,
+            onDismiss = { viewModel.hideRenameDialog() },
+            onRename = { newName -> renameFile?.let { viewModel.renameFile(it, newName) } })
+        DeleteDialog(
+            show = showDeleteDialog,
+            file = deleteFile,
+            onDismiss = { viewModel.hideDeleteDialog() },
+            onDelete = { deleteFile?.let { viewModel.deleteFile(it) } })
+        MoveDialog(
+            show = showMoveDialog,
+            file = moveFile,
+            folderTree = folderTree,
+            selectedPath = moveTargetPath,
+            onDismiss = { viewModel.hideMoveDialog() },
+            onMove = { targetPath -> moveFile?.let { viewModel.moveFile(it, targetPath) } },
+            onToggleFolder = { node -> viewModel.toggleFolder(node) },
+            onSelectPath = { path -> viewModel.setMoveTargetPath(path) })
+
+        BatchDeleteDialog(
+            show = showBatchDeleteDialog,
+            selectedFiles = selectedFiles,
+            onDismiss = { viewModel.hideBatchDeleteDialog() },
+            onDelete = { viewModel.deleteSelectedFiles() })
+        BatchMoveDialog(
+            show = showBatchMoveDialog, selectedFiles = selectedFiles, folderTree = folderTree,
+            selectedPath = moveTargetPath, onDismiss = { viewModel.hideBatchMoveDialog() },
+            onMove = { targetPath -> viewModel.moveSelectedFiles(targetPath) },
+            onToggleFolder = { node -> viewModel.toggleFolder(node) },
+            onSelectPath = { path -> viewModel.setMoveTargetPath(path) })
+    }
+
+    EditDialog(
+        show = showEditDialog, file = previewFile, content = editFileContent,
+        readOnly = readOnly,
         onDismiss = { viewModel.hideEditDialog() },
-        onSave = { content -> previewFile?.let { file -> viewModel.saveFileContent(file, content) } })
+        onSave = { content ->
+            previewFile?.let { file ->
+                viewModel.saveFileContent(
+                    file,
+                    content
+                )
+            }
+        })
     LoadingDialog(show = showLoadingDialog)
-    BatchDeleteDialog(show = showBatchDeleteDialog, selectedFiles = selectedFiles,
-        onDismiss = { viewModel.hideBatchDeleteDialog() }, onDelete = { viewModel.deleteSelectedFiles() })
-    BatchMoveDialog(show = showBatchMoveDialog, selectedFiles = selectedFiles, folderTree = folderTree,
-        selectedPath = moveTargetPath, onDismiss = { viewModel.hideBatchMoveDialog() },
-        onMove = { targetPath -> viewModel.moveSelectedFiles(targetPath) },
-        onToggleFolder = { node -> viewModel.toggleFolder(node) },
-        onSelectPath = { path -> viewModel.setMoveTargetPath(path) })
+    if (downloadEnable) {
+        // 导出单个文件对话框
+        DownloadDialog(
+            show = showExportDialog,
+            file = exportFile,
+            isLocal = true,
+            onDismiss = { viewModel.hideExportDialog() },
+            onDownload = {
+                exportFile?.let { file ->
+                    viewModel.exportFile(context, file)
+                }
+            }
+        )
+        // 批量导出对话框
+        BatchDownloadDialog(
+            show = showBatchExportDialog,
+            selectedFiles = selectedFiles,
+            onDismiss = { viewModel.hideBatchExportDialog() },
+            onDownload = {
+                viewModel.exportSelectedFiles(context)
+            }
+        )
+    }
+
 
     // APK 安装权限申请
     val installPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O &&
-            context.packageManager.canRequestPackageInstalls()) {
+            context.packageManager.canRequestPackageInstalls()
+        ) {
             pendingApkFile?.let { openFileInExternalApp(it, context) }
         }
         pendingApkFile = null
@@ -965,13 +1349,23 @@ private fun handleFileClick(
         FileType.isMediaType(file.name) -> openMediaPreview(files, file, viewModel, context)
         FileType.isEditStringType(file.name) && !file.isWithinTextEditorLimit() ->
             viewModel.readFileContent(file)
-        file.name.endsWith(".apk", ignoreCase = true) -> onApkFile(File(viewModel.getFullPath(file)))
+
+        file.name.endsWith(
+            ".apk",
+            ignoreCase = true
+        ) -> onApkFile(File(viewModel.getFullPath(file)))
+
         else -> openFileInExternalApp(File(viewModel.getFullPath(file)), context)
     }
 }
 
 /** 处理文件预览事件 */
-private fun handleFilePreview(file: FileItem, files: List<FileItem>, viewModel: LocalFileViewModel, context: Context) {
+private fun handleFilePreview(
+    file: FileItem,
+    files: List<FileItem>,
+    viewModel: LocalFileViewModel,
+    context: Context
+) {
     if (file.isFolder) {
         viewModel.navigateToFolder(file)
         viewModel.setSelectedFile(null)
@@ -996,11 +1390,15 @@ private fun openMediaPreview(
     if (idx >= 0) MediaPreviewActivity.start(context, mediaFiles, idx)
 }
 
-fun openMediaPreview( files: List<File>,
-                      currentFile: File, context: Context,isLoop: Boolean=true){
+fun openMediaPreview(
+    files: List<File>,
+    currentFile: File, context: Context, isLoop: Boolean = true
+) {
     val idx = files.indexOfFirst { it.name == currentFile.name }
-    if (idx >= 0) MediaPreviewActivity.start(context, files.map { MediaFileInfo(url = it.absolutePath, name = it.name) }, idx,
-        isLoop = isLoop)
+    if (idx >= 0) MediaPreviewActivity.start(
+        context, files.map { MediaFileInfo(url = it.absolutePath, name = it.name) }, idx,
+        isLoop = isLoop
+    )
 }
 
 /** 通过外部应用打开文件 */
@@ -1068,44 +1466,192 @@ fun getMimeType(fileName: String): String {
 private fun LocalMultiSelectBottomBar(
     selectedCount: Int,
     totalCount: Int,
+    downloadEnable: Boolean,
+    readOnly: Boolean,
     onSelectAll: () -> Unit,
     onDeselectAll: () -> Unit,
     onDelete: () -> Unit,
     onMove: () -> Unit,
+    onExport: () -> Unit,
     onCancel: () -> Unit
 ) {
+    val deviceType = rememberDeviceType()
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         tonalElevation = 8.dp,
         color = MaterialTheme.colorScheme.surfaceVariant
     ) {
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+        ) {
+            // 选中数量提示
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("已选中 $selectedCount / $totalCount 项",
+                Text(
+                    text = "已选中 $selectedCount / $totalCount 项",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Row {
-                    TextButton(onClick = onSelectAll) { Text("全选") }
-                    TextButton(onClick = onDeselectAll) { Text("取消全选") }
+                    TextButton(onClick = onSelectAll) {
+                        Text("全选")
+                    }
+                    TextButton(onClick = onDeselectAll) {
+                        Text("取消全选")
+                    }
                 }
             }
+
             Spacer(modifier = Modifier.height(8.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = onDelete, enabled = selectedCount > 0,
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                    modifier = Modifier.weight(1f)
-                ) { Text("删除") }
-                Button(
-                    onClick = onMove, enabled = selectedCount > 0,
-                    modifier = Modifier.weight(1f)
-                ) { Text("移动") }
-                OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f)) { Text("取消") }
+
+            if (deviceType == DeviceType.TABLET) {
+                // 平板：四个按钮显示在一行
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (!readOnly) {
+                        // 删除按钮
+                        Button(
+                            onClick = onDelete,
+                            enabled = selectedCount > 0,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.error
+                            ),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("删除")
+                        }
+
+                        // 移动按钮
+                        Button(
+                            onClick = onMove,
+                            enabled = selectedCount > 0,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DriveFileMove,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("移动")
+                        }
+                    }
+
+                    if (downloadEnable) {
+                        // 导出按钮
+                        Button(
+                            onClick = onExport,
+                            enabled = selectedCount > 0,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Output,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("导出")
+                        }
+                    }
+
+                    // 取消按钮
+                    OutlinedButton(
+                        onClick = onCancel,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("取消")
+                    }
+                }
+            } else {
+                // 手机：两行显示
+                // 操作按钮 - 第一行
+                if (!readOnly) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // 删除按钮
+                        Button(
+                            onClick = onDelete,
+                            enabled = selectedCount > 0,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.error
+                            ),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("删除")
+                        }
+
+                        // 移动按钮
+                        Button(
+                            onClick = onMove,
+                            enabled = selectedCount > 0,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DriveFileMove,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("移动")
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
+                // 操作按钮 - 第二行
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (downloadEnable) {
+                        // 导出按钮
+                        Button(
+                            onClick = onExport,
+                            enabled = selectedCount > 0,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Output,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("导出")
+                        }
+                    }
+
+                    // 取消按钮
+                    OutlinedButton(
+                        onClick = onCancel,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("取消")
+                    }
+                }
             }
+
+            // 底部留空
             Spacer(modifier = Modifier.height(16.dp))
         }
     }
@@ -1120,6 +1666,8 @@ class LocalFileManagerActivity : ComponentActivity() {
     companion object {
         private const val EXTRA_ROOT_DIR = "root_dir"
         private const val EXTRA_SUB_DIR = "sub_dir"
+        private const val EXTRA_READ_ONLY = "read_only"
+        private const val EXTRA_DOWNLOAD_ENABLE = "download_enable"
 
         /**
          * 启动本地文件管理器
@@ -1127,11 +1675,20 @@ class LocalFileManagerActivity : ComponentActivity() {
          * @param rootDir 根目录绝对路径
          * @param subDir 可选的初始子目录（相对于 rootDir）
          */
-        fun start(context: Context, rootDir: String, subDir: String? = null) {
+        fun start(
+            context: Context,
+            rootDir: String,
+            subDir: String? = null,
+            readOnly: Boolean = false
+        ) {
             val intent = Intent(context, LocalFileManagerActivity::class.java).apply {
                 putExtra(EXTRA_ROOT_DIR, rootDir)
                 subDir?.let { putExtra(EXTRA_SUB_DIR, it) }
+                putExtra(EXTRA_READ_ONLY, readOnly)
+                putExtra(EXTRA_DOWNLOAD_ENABLE, !rootDir.contains(getDownloadDir().absolutePath))
+
             }
+
             context.startActivity(intent)
         }
     }
@@ -1147,12 +1704,18 @@ class LocalFileManagerActivity : ComponentActivity() {
         }
 
         val subDir = intent.getStringExtra(EXTRA_SUB_DIR)
+        val readOnly = intent.getBooleanExtra(EXTRA_READ_ONLY, false)
+        val downloadEnable = intent.getBooleanExtra(EXTRA_DOWNLOAD_ENABLE, true)
         val viewModel = LocalFileViewModel(rootDir, subDir)
 
         setContent {
             FileManagerTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    LocalFileManagerScreen(viewModel = viewModel, onBack = { finish() })
+                    LocalFileManagerScreen(
+                        viewModel = viewModel,
+                        downloadEnable = downloadEnable,
+                        readOnly = readOnly,
+                        onBack = { finish() })
                 }
             }
         }

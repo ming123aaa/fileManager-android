@@ -8,7 +8,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.ExperimentalMaterialApi
@@ -18,13 +17,9 @@ import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.*
-import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
-import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.ohuang.filemanager.data.FileItem
@@ -39,6 +34,8 @@ import kotlinx.coroutines.launch
 fun FileList(
     files: List<FileItem>,
     selectedFile: FileItem?,
+    downloadEnable: Boolean,
+    readOnly: Boolean,
     onFileClick: (FileItem) -> Unit,
     lazyGridState: LazyGridState,
     isLocalFile: Boolean=false,
@@ -165,7 +162,8 @@ fun FileList(
                             onOpenInNew = { f ->
                                 contextMenuFile = null
                                 onOpenInNew(f)
-                            }
+                            },
+                            downloadEnable =downloadEnable , readOnly = readOnly,
                         )
                     } else {
                         // 网格模式卡片
@@ -218,7 +216,8 @@ fun FileList(
                             onOpenInNew = { f ->
                                 contextMenuFile = null
                                 onOpenInNew(f)
-                            }
+                            },
+                            downloadEnable =downloadEnable , readOnly = readOnly,
                         )
                     }
                 }

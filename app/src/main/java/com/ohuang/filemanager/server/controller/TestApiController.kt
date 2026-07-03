@@ -1,6 +1,7 @@
 package com.ohuang.filemanager.server.controller
 
 
+import com.ohuang.filemanager.getServiceReadOnly
 import com.yanzhenjie.andserver.annotation.GetMapping
 import com.yanzhenjie.andserver.annotation.RequestMapping
 import com.yanzhenjie.andserver.annotation.RequestParam
@@ -19,12 +20,14 @@ class TestApiController {
 
     @GetMapping("/connect")
     fun canConnect(): String {
+        if (getServiceReadOnly()){
+            return "成功-read"
+        }
         return "成功"
     }
 
     @GetMapping("/version")
     fun version(request: HttpRequest,response: HttpResponse){
-
         response.setBody(StringBody("1.0"))
     }
 

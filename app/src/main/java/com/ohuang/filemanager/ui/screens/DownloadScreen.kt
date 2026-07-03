@@ -308,10 +308,8 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
         Column(modifier = Modifier.padding(paddingValues)) {
 
             val downloadDirPath = remember {
-                File(
-                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                    "fileManager"
-                ).absolutePath
+                AppDownloadManager.getDownloadDir().absolutePath
+
             }
 
             Card(

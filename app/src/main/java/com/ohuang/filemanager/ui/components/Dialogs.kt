@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.NoteAdd
+import androidx.compose.material.icons.filled.Output
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -588,6 +589,7 @@ fun FolderTreeItem(
 @Composable
 fun EditDialog(
     show: Boolean,
+    readOnly: Boolean,
     file: FileItem?,
     content: String,
     onDismiss: () -> Unit,
@@ -671,7 +673,8 @@ fun EditDialog(
                         .padding(8.dp)
                 ) {
 
-                    androidx.compose.foundation.text.BasicTextField(
+                    androidx.compose.foundation.text.BasicTextField(enabled = !readOnly,
+
                         value = editContent,
                         onValueChange = { editContent = it },
                         modifier = Modifier.fillMaxSize(),
@@ -714,10 +717,14 @@ fun EditDialog(
                         onClick = {
                             keyboardController?.hide()
                             focusManager.clearFocus()
-                            onSave(editContent)
+                            if(readOnly){
+                                onDismiss()
+                            }else {
+                                onSave(editContent)
+                            }
                         }
                     ) {
-                        Text("保存")
+                        Text(if (readOnly) "确定" else "保存")
                     }
                 }
             }
@@ -730,10 +737,13 @@ fun EditDialog(
 fun DownloadDialog(
     show: Boolean,
     file: FileItem?,
+    isLocal: Boolean=false,
     onDismiss: () -> Unit,
     onDownload: () -> Unit
 ) {
     if (!show || file == null) return
+
+   val action=if (isLocal) "导出" else "下载"
 
     Dialog(
         onDismissRequest = {},
@@ -751,13 +761,13 @@ fun DownloadDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Download,
-                        contentDescription = "Download",
+                        imageVector = if (isLocal) Icons.Default.Output else Icons.Default.Download,
+                        contentDescription = if (isLocal) "export" else "Download",
                         tint = MaterialTheme.colorScheme.primary
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "下载文件",
+                        text = "${action}文件",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -771,7 +781,7 @@ fun DownloadDialog(
                 )
 
                 Text(
-                    text = "确定要下载文件 \"${file.getFileName()}\" 吗？",
+                    text = "确定要${action} \"${file.getFileName()}\" 文件吗？",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -796,7 +806,7 @@ fun DownloadDialog(
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                     Button(onClick = onDownload) {
-                        Text("下载")
+                        Text(action)
                     }
                 }
             }

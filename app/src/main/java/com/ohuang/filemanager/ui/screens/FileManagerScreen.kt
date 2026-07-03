@@ -58,6 +58,10 @@ fun FileManagerScreen(
     val viewModel: FileViewModel = viewModel()
     val context = LocalContext.current
     val deviceType = rememberDeviceType()
+    val downloadEnable = true
+    val readOnly by HttpConfig.readOnly.collectAsState()
+
+
 
 
 
@@ -207,7 +211,9 @@ fun FileManagerScreen(
                     onDelete = { viewModel.showBatchDeleteDialog() },
                     onMove = { viewModel.showBatchMoveDialog() },
                     onDownload = { viewModel.showBatchDownloadDialog() },
-                    onCancel = { viewModel.exitMultiSelectMode() }
+                    onCancel = { viewModel.exitMultiSelectMode() },
+                    readOnly = readOnly,
+                    downloadEnable = downloadEnable,
                 )
             }
         }
@@ -247,7 +253,9 @@ fun FileManagerScreen(
                     },
                     // 多选模式参数
                     isMultiSelectMode = isMultiSelectMode,
-                    onToggleMultiSelectMode = { viewModel.toggleMultiSelectMode() }
+                    onToggleMultiSelectMode = { viewModel.toggleMultiSelectMode() },
+                    downloadEnable = downloadEnable, readOnly = readOnly
+
                 )
 
                 Divider()
@@ -387,7 +395,9 @@ fun FileManagerScreen(
                         // 多选模式相关参数
                         isMultiSelectMode = isMultiSelectMode,
                         selectedFiles = selectedFiles,
-                        onToggleFileSelection = { file -> viewModel.toggleFileSelection(file) }
+                        onToggleFileSelection = { file -> viewModel.toggleFileSelection(file) },
+                        downloadEnable = downloadEnable,
+                        readOnly = readOnly
                     )
 
                     var isShowLoading by remember {
@@ -467,74 +477,77 @@ fun FileManagerScreen(
         }
     }
 
-    CreateFolderDialog(
-        show = showMkdirDialog,
-        onDismiss = { viewModel.hideMkdirDialog() },
-        onCreate = { viewModel.createFolder(it) }
-    )
+    if (!readOnly) {
+        CreateFolderDialog(
+            show = showMkdirDialog,
+            onDismiss = { viewModel.hideMkdirDialog() },
+            onCreate = { viewModel.createFolder(it) }
+        )
 
-    CreateFileDialog(
-        show = showCreateFileDialog,
-        onDismiss = { viewModel.hideCreateFileDialog() },
-        onCreate = { viewModel.createFile(it) }
-    )
+        CreateFileDialog(
+            show = showCreateFileDialog,
+            onDismiss = { viewModel.hideCreateFileDialog() },
+            onCreate = { viewModel.createFile(it) }
+        )
 
-    RenameDialog(
-        show = showRenameDialog,
-        file = renameFile,
-        onDismiss = { viewModel.hideRenameDialog() },
-        onRename = { newName ->
-            renameFile?.let { viewModel.renameFile(it, newName) }
-        }
-    )
-
-    DeleteDialog(
-        show = showDeleteDialog,
-        file = deleteFile,
-        onDismiss = { viewModel.hideDeleteDialog() },
-        onDelete = {
-            deleteFile?.let { viewModel.deleteFile(it) }
-        }
-    )
-
-    MoveDialog(
-        show = showMoveDialog,
-        file = moveFile,
-        folderTree = folderTree,
-        selectedPath = moveTargetPath,
-        onDismiss = { viewModel.hideMoveDialog() },
-        onMove = { targetPath ->
-            moveFile?.let { viewModel.moveFile(it, targetPath) }
-        },
-        onToggleFolder = { node ->
-            viewModel.toggleFolder(node)
-        },
-        onSelectPath = { path ->
-            viewModel.setMoveTargetPath(path)
-        }
-    )
-
-
-
-
-
-    checkStoragePermission(context,showDownloadDialog)
-
-
-    DownloadDialog(
-        show = showDownloadDialog,
-        file = downloadFile,
-        onDismiss = { viewModel.hideDownloadDialog() },
-        onDownload = {
-
-            downloadFile?.let { file ->
-                viewModel.hideDownloadDialog()
-                viewModel.downloadFileOrFolder(context, file)
+        RenameDialog(
+            show = showRenameDialog,
+            file = renameFile,
+            onDismiss = { viewModel.hideRenameDialog() },
+            onRename = { newName ->
+                renameFile?.let { viewModel.renameFile(it, newName) }
             }
-        }
-    )
+        )
+
+        DeleteDialog(
+            show = showDeleteDialog,
+            file = deleteFile,
+            onDismiss = { viewModel.hideDeleteDialog() },
+            onDelete = {
+                deleteFile?.let { viewModel.deleteFile(it) }
+            }
+        )
+
+        MoveDialog(
+            show = showMoveDialog,
+            file = moveFile,
+            folderTree = folderTree,
+            selectedPath = moveTargetPath,
+            onDismiss = { viewModel.hideMoveDialog() },
+            onMove = { targetPath ->
+                moveFile?.let { viewModel.moveFile(it, targetPath) }
+            },
+            onToggleFolder = { node ->
+                viewModel.toggleFolder(node)
+            },
+            onSelectPath = { path ->
+                viewModel.setMoveTargetPath(path)
+            }
+        )
 
 
+        // 批量删除对话框
+        BatchDeleteDialog(
+            show = showBatchDeleteDialog,
+            selectedFiles = selectedFiles,
+            onDismiss = { viewModel.hideBatchDeleteDialog() },
+            onDelete = { viewModel.deleteSelectedFiles() }
+        )
+
+        // 批量移动对话框
+        BatchMoveDialog(
+            show = showBatchMoveDialog,
+            selectedFiles = selectedFiles,
+            folderTree = folderTree,
+            selectedPath = moveTargetPath,
+            onDismiss = { viewModel.hideBatchMoveDialog() },
+            onMove = { targetPath -> viewModel.moveSelectedFiles(targetPath) },
+            onToggleFolder = { node -> viewModel.toggleFolder(node) },
+            onSelectPath = { path -> viewModel.setMoveTargetPath(path) }
+        )
+
+
+    }
 
     EditDialog(
         show = showEditDialog,
@@ -543,45 +556,45 @@ fun FileManagerScreen(
         onDismiss = { viewModel.hideEditDialog() },
         onSave = { content ->
             previewFile?.let { file -> viewModel.saveFileContent(file, content) }
-        }
+        },
+        readOnly = readOnly
     )
+
+    if (downloadEnable) {
+        checkStoragePermission(context, showDownloadDialog or showBatchDownloadDialog)
+
+        DownloadDialog(
+            show = showDownloadDialog,
+            file = downloadFile,
+            onDismiss = { viewModel.hideDownloadDialog() },
+            onDownload = {
+
+                downloadFile?.let { file ->
+                    viewModel.hideDownloadDialog()
+                    viewModel.downloadFileOrFolder(context, file)
+                }
+            }
+        )
+
+        // 批量下载对话框
+        BatchDownloadDialog(
+            show = showBatchDownloadDialog,
+            selectedFiles = selectedFiles,
+            onDismiss = { viewModel.hideBatchDownloadDialog() },
+            onDownload = {
+                viewModel.downloadSelectedFiles(context)
+                viewModel.hideBatchDownloadDialog()
+            }
+        )
+    }
 
     LoadingDialog(show = showLoadingDialog)
 
-    // 批量删除对话框
-    BatchDeleteDialog(
-        show = showBatchDeleteDialog,
-        selectedFiles = selectedFiles,
-        onDismiss = { viewModel.hideBatchDeleteDialog() },
-        onDelete = { viewModel.deleteSelectedFiles() }
-    )
 
-    // 批量移动对话框
-    BatchMoveDialog(
-        show = showBatchMoveDialog,
-        selectedFiles = selectedFiles,
-        folderTree = folderTree,
-        selectedPath = moveTargetPath,
-        onDismiss = { viewModel.hideBatchMoveDialog() },
-        onMove = { targetPath -> viewModel.moveSelectedFiles(targetPath) },
-        onToggleFolder = { node -> viewModel.toggleFolder(node) },
-        onSelectPath = { path -> viewModel.setMoveTargetPath(path) }
-    )
-
-    // 批量下载对话框
-    BatchDownloadDialog(
-        show = showBatchDownloadDialog,
-        selectedFiles = selectedFiles,
-        onDismiss = { viewModel.hideBatchDownloadDialog() },
-        onDownload = {
-            viewModel.downloadSelectedFiles(context)
-            viewModel.hideBatchDownloadDialog()
-        }
-    )
 }
 
 @Composable
-private fun checkStoragePermission(context: Context,isCheck: Boolean) {
+private fun checkStoragePermission(context: Context, isCheck: Boolean) {
     // 存储权限申请
     val legacyPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -591,7 +604,7 @@ private fun checkStoragePermission(context: Context,isCheck: Boolean) {
     ) { _ -> }
 
     LaunchedEffect(isCheck) {
-        if (!isCheck){
+        if (!isCheck) {
             return@LaunchedEffect
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -696,6 +709,8 @@ fun ErrorState(errorMessage: String, onRetry: () -> Unit) {
 fun MultiSelectBottomBar(
     selectedCount: Int,
     totalCount: Int,
+    downloadEnable: Boolean,
+    readOnly: Boolean,
     onSelectAll: () -> Unit,
     onDeselectAll: () -> Unit,
     onDelete: () -> Unit,
@@ -742,52 +757,56 @@ fun MultiSelectBottomBar(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // 删除按钮
-                    Button(
-                        onClick = onDelete,
-                        enabled = selectedCount > 0,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error
-                        ),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("删除")
+                    if (!readOnly) {
+                        // 删除按钮
+                        Button(
+                            onClick = onDelete,
+                            enabled = selectedCount > 0,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.error
+                            ),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("删除")
+                        }
+
+                        // 移动按钮
+                        Button(
+                            onClick = onMove,
+                            enabled = selectedCount > 0,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DriveFileMove,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("移动")
+                        }
                     }
 
-                    // 移动按钮
-                    Button(
-                        onClick = onMove,
-                        enabled = selectedCount > 0,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.DriveFileMove,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("移动")
-                    }
-
-                    // 下载按钮
-                    Button(
-                        onClick = onDownload,
-                        enabled = selectedCount > 0,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Download,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("下载")
+                    if (downloadEnable) {
+                        // 下载按钮
+                        Button(
+                            onClick = onDownload,
+                            enabled = selectedCount > 0,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Download,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("下载")
+                        }
                     }
 
                     // 取消按钮
@@ -801,64 +820,67 @@ fun MultiSelectBottomBar(
             } else {
                 // 手机：两行显示
                 // 操作按钮 - 第一行
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // 删除按钮
-                    Button(
-                        onClick = onDelete,
-                        enabled = selectedCount > 0,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error
-                        ),
-                        modifier = Modifier.weight(1f)
+                if (!readOnly) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("删除")
+                        // 删除按钮
+                        Button(
+                            onClick = onDelete,
+                            enabled = selectedCount > 0,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.error
+                            ),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("删除")
+                        }
+
+                        // 移动按钮
+                        Button(
+                            onClick = onMove,
+                            enabled = selectedCount > 0,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DriveFileMove,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("移动")
+                        }
                     }
 
-                    // 移动按钮
-                    Button(
-                        onClick = onMove,
-                        enabled = selectedCount > 0,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.DriveFileMove,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("移动")
-                    }
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
                 // 操作按钮 - 第二行
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // 下载按钮
-                    Button(
-                        onClick = onDownload,
-                        enabled = selectedCount > 0,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Download,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("下载")
+                    if (downloadEnable) {
+                        // 下载按钮
+                        Button(
+                            onClick = onDownload,
+                            enabled = selectedCount > 0,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Download,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("下载")
+                        }
                     }
 
                     // 取消按钮

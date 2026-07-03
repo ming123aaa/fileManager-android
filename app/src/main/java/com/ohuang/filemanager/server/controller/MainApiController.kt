@@ -3,6 +3,7 @@ package com.ohuang.filemanager.server.controller
 import android.util.Log
 import com.google.gson.Gson
 import com.ohuang.filemanager.getServiceFilePath
+import com.ohuang.filemanager.getServiceReadOnly
 import com.ohuang.filemanager.server.bean.FileBean
 import com.ohuang.filemanager.server.util.AppContext
 import com.ohuang.filemanager.util.SPUtil
@@ -50,6 +51,9 @@ class MainApiController {
         @RequestParam("fileName") file: MultipartFile,
         @RequestParam(value = "path", required = false, defaultValue = "") path: String
     ): String {
+        if (getServiceReadOnly()){
+            return "操作失败,服务端设置了只读模式"
+        }
         return fileUploadInternal(getBasePath(), file, path)
     }
 
@@ -58,6 +62,9 @@ class MainApiController {
         @RequestParam("fileName") file: MultipartFile,
         @RequestParam(value = "path", required = false, defaultValue = "") path: String
     ): String {
+        if (getServiceReadOnly()){
+            return "操作失败,服务端设置了只读模式"
+        }
         return fileUploadInternal(getBasePath(), file, path)
     }
 
@@ -82,6 +89,9 @@ class MainApiController {
         request: HttpRequest,
         @RequestParam(value = "path", required = false, defaultValue = "") path: String
     ): String {
+        if (getServiceReadOnly()){
+            return "操作失败,服务端设置了只读模式"
+        }
         return multifileUploadInternal(getBasePath(), request, path)
     }
 
@@ -90,6 +100,9 @@ class MainApiController {
         request: HttpRequest,
         @RequestParam(value = "path", required = false, defaultValue = "") path: String
     ): String {
+        if (getServiceReadOnly()){
+            return "操作失败,服务端设置了只读模式"
+        }
         return multifileUploadInternal(getBasePath(), request, path)
     }
 
@@ -130,7 +143,7 @@ class MainApiController {
     @GetMapping("/getAllFile")
     fun getAllFileGet(
         request: HttpRequest,
-        @RequestParam(value = "path", required = false) path: String
+        @RequestParam(value = "path",  required = false, defaultValue = "") path: String
     ): String {
         return getAllFileInternal(getBasePath(), path)
     }
@@ -138,7 +151,7 @@ class MainApiController {
     @PostMapping("/getAllFile")
     fun getAllFilePost(
         request: HttpRequest,
-        @RequestParam(value = "path", required = false) path: String
+        @RequestParam(value = "path",  required = false, defaultValue = "") path: String
     ): String {
         return getAllFileInternal(getBasePath(), path)
     }
@@ -159,8 +172,11 @@ class MainApiController {
     fun mkdirGet(
         request: HttpRequest,
         @RequestParam(value = "path", required = false, defaultValue = "") path: String,
-        @RequestParam("name") name: String
+        @RequestParam("name", required = false, defaultValue = "") name: String
     ): String {
+        if (getServiceReadOnly()){
+            return "操作失败,服务端设置了只读模式"
+        }
         return mkdirInternal(getBasePath(), path, name)
     }
 
@@ -168,8 +184,11 @@ class MainApiController {
     fun mkdirPost(
         request: HttpRequest,
         @RequestParam(value = "path", required = false, defaultValue = "") path: String,
-        @RequestParam("name") name: String
+        @RequestParam("name", required = false, defaultValue = "") name: String
     ): String {
+        if (getServiceReadOnly()){
+            return "操作失败,服务端设置了只读模式"
+        }
         return mkdirInternal(getBasePath(), path, name)
     }
 
@@ -187,12 +206,18 @@ class MainApiController {
     }
 
     @GetMapping("/delete")
-    fun deleteGet(request: HttpRequest, @RequestParam("path") path: String): String {
+    fun deleteGet(request: HttpRequest, @RequestParam(value = "path", required = false, defaultValue = "") path: String): String {
+        if (getServiceReadOnly()){
+            return "操作失败,服务端设置了只读模式"
+        }
         return deleteInternal(getBasePath(), path)
     }
 
     @PostMapping("/delete")
-    fun deletePost(request: HttpRequest, @RequestParam("path") path: String): String {
+    fun deletePost(request: HttpRequest, @RequestParam(value = "path", required = false, defaultValue = "") path: String): String {
+        if (getServiceReadOnly()){
+            return "操作失败,服务端设置了只读模式"
+        }
         return deleteInternal(getBasePath(), path)
     }
 
@@ -219,18 +244,24 @@ class MainApiController {
     @GetMapping("/rename")
     fun renameGet(
         request: HttpRequest,
-        @RequestParam("path") path: String,
-        @RequestParam("newName") newName: String
+        @RequestParam(value = "path", required = false, defaultValue = "") path: String,
+        @RequestParam("newName", required = false, defaultValue = "") newName: String
     ): String {
+        if (getServiceReadOnly()){
+            return "操作失败,服务端设置了只读模式"
+        }
         return renameInternal(getBasePath(), path, newName)
     }
 
     @PostMapping("/rename")
     fun renamePost(
         request: HttpRequest,
-        @RequestParam("path") path: String,
-        @RequestParam("newName") newName: String
+        @RequestParam(value = "path", required = false, defaultValue = "") path: String,
+        @RequestParam("newName", required = false, defaultValue = "") newName: String
     ): String {
+        if (getServiceReadOnly()){
+            return "操作失败,服务端设置了只读模式"
+        }
         return renameInternal(getBasePath(), path, newName)
     }
 
@@ -253,18 +284,24 @@ class MainApiController {
     @GetMapping("/move")
     fun moveGet(
         request: HttpRequest,
-        @RequestParam("path") path: String,
-        @RequestParam("targetDir") targetDir: String
+        @RequestParam(value = "path", required = false, defaultValue = "") path: String,
+        @RequestParam("targetDir", required = false, defaultValue = "") targetDir: String
     ): String {
+        if (getServiceReadOnly()){
+            return "操作失败,服务端设置了只读模式"
+        }
         return moveInternal(getBasePath(), path, targetDir)
     }
 
     @PostMapping("/move")
     fun movePost(
         request: HttpRequest,
-        @RequestParam("path") path: String,
-        @RequestParam("targetDir") targetDir: String
+        @RequestParam(value = "path", required = false, defaultValue = "") path: String,
+        @RequestParam("targetDir", required = false, defaultValue = "") targetDir: String
     ): String {
+        if (getServiceReadOnly()){
+            return "操作失败,服务端设置了只读模式"
+        }
         return moveInternal(getBasePath(), path, targetDir)
     }
 
@@ -290,6 +327,9 @@ class MainApiController {
         @RequestParam("txt",required = false, defaultValue = "") txt: String,
         @RequestParam(value = "path", required = false, defaultValue = "test.txt") path: String
     ): String {
+        if (getServiceReadOnly()){
+            return "操作失败,服务端设置了只读模式"
+        }
         return writeTextInternal(getBasePath(), txt, path)
     }
 
@@ -299,6 +339,9 @@ class MainApiController {
         @RequestParam("txt",required = false, defaultValue = "") txt: String,
         @RequestParam(value = "path", required = false, defaultValue = "test.txt") path: String
     ): String {
+        if (getServiceReadOnly()){
+            return "操作失败,服务端设置了只读模式"
+        }
         return writeTextInternal(getBasePath(), txt, path)
     }
 
@@ -391,8 +434,11 @@ class MainApiController {
     fun createFileGet(
         request: HttpRequest,
         @RequestParam(value = "path", required = false, defaultValue = "") path: String,
-        @RequestParam("name") name: String
+        @RequestParam("name", required = false, defaultValue = "") name: String
     ): String {
+        if (getServiceReadOnly()){
+            return "操作失败,服务端设置了只读模式"
+        }
         return createFileInternal(getBasePath(), path, name)
     }
 
@@ -400,8 +446,11 @@ class MainApiController {
     fun createFilePost(
         request: HttpRequest,
         @RequestParam(value = "path", required = false, defaultValue = "") path: String,
-        @RequestParam("name") name: String
+        @RequestParam("name", required = false, defaultValue = "") name: String
     ): String {
+        if (getServiceReadOnly()){
+            return "操作失败,服务端设置了只读模式"
+        }
         return createFileInternal(getBasePath(), path, name)
     }
 
@@ -423,12 +472,12 @@ class MainApiController {
     }
 
     @GetMapping("/fileInfo")
-    fun fileInfoGet(request: HttpRequest, @RequestParam("path") path: String): String {
+    fun fileInfoGet(request: HttpRequest, @RequestParam(value = "path", required = false, defaultValue = "") path: String): String {
         return fileInfoInternal(getBasePath(), path)
     }
 
     @PostMapping("/fileInfo")
-    fun fileInfoPost(request: HttpRequest, @RequestParam("path") path: String): String {
+    fun fileInfoPost(request: HttpRequest, @RequestParam(value = "path", required = false, defaultValue = "") path: String): String {
         return fileInfoInternal(getBasePath(), path)
     }
 

@@ -29,14 +29,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -48,7 +46,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
-import com.ohuang.filemanager.ui.theme.FileManagerTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -59,28 +56,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.LineHeightStyle
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.ohuang.filemanager.config.HttpConfig
 import com.ohuang.filemanager.server.MutableWebServer
 import com.ohuang.filemanager.server.adapter.DownloadAdapter
+import com.ohuang.filemanager.server.adapter.HtmlAdapter
 import com.ohuang.filemanager.server.util.AppContext
+import com.ohuang.filemanager.ui.theme.FileManagerTheme
 import com.ohuang.filemanager.util.ClipboardUtils
 import com.ohuang.filemanager.util.NetWorkUtil
 import com.ohuang.filemanager.util.SPUtil
-import com.yanzhenjie.andserver.AndServer
 import com.yanzhenjie.andserver.Server
-import com.yanzhenjie.andserver.server.WebServer
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
-import java.net.InetAddress
-import java.net.NetworkInterface
 import kotlin.coroutines.resume
-import kotlin.math.max
 
 class ServiceLauncherActivity : ComponentActivity() {
 
@@ -288,6 +279,29 @@ class ServiceLauncherActivity : ComponentActivity() {
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("文件只读:", modifier = Modifier.weight(1f))
+                var readOnly by remember {
+                    mutableStateOf(getServiceReadOnly())
+                }
+                Switch(
+                    checked = readOnly,
+                    onCheckedChange = {
+                        readOnly = it
+                        setServiceReadOnly(AppContext.instance,readOnly)
+                        AndServerManager.msgList.add(ServiceMsg(msg = if (it) "设置:文件只读" else "设置:文件可读写"))
+                        HttpConfig.loadBaseUrl(AppContext.instance)
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             LazyColumn {
 
                 items(AndServerManager.msgList) {
@@ -406,6 +420,14 @@ fun setServicePort(context: Context = AppContext.instance, port: Int = 8080) {
     SPUtil.put(context, "fileManager_port", port)
 }
 
+fun getServiceReadOnly(context: Context = AppContext.instance): Boolean {
+    return SPUtil.get(context, "fileManager_read_only", false) as Boolean
+}
+
+fun setServiceReadOnly(context: Context = AppContext.instance, readOnly: Boolean) {
+    SPUtil.put(context, "fileManager_read_only", readOnly)
+}
+
 fun getServiceFilePath(context: Context = AppContext.instance): String {
 
     return SPUtil.get(
@@ -507,6 +529,7 @@ object AndServerManager {
 
         server = MutableWebServer.builder(context)
             .addAdapter(DownloadAdapter())
+            .addAdapter(HtmlAdapter())
             .port(port)
             .listener(object : Server.ServerListener {
                 override fun onStarted() {

@@ -22,8 +22,8 @@ android {
         applicationId "com.ohuang.filemanager"
         minSdk 24
         targetSdk 36
-        versionCode 280
-        versionName "2.8"
+        versionCode 290
+        versionName "2.9"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

@@ -22,7 +22,10 @@ object ApiService {
 
     private val client = HttpClient()
 
-    fun getAllFiles(path: String): HttpCall<List<FileItem>> {
+    fun getAllFiles(path: String,isConnect: Boolean=false): HttpCall<List<FileItem>> {
+        if (isConnect) {
+            HttpConfig.connect()
+        }
         return client.jsonCall<List<FileItem>> {
             url(HttpConfig.getBaseUrl() + BASE_PATH + "/getAllFile") {
                 if (path.isNotEmpty()) {
@@ -31,6 +34,8 @@ object ApiService {
             }
         }
     }
+
+
 
     fun getFileInfo(path: String): HttpCall<FileItem> {
         return client.jsonCall<FileItem> {
@@ -144,7 +149,11 @@ object ApiService {
             java.net.URLEncoder.encode(fullPath, "UTF-8").replace("%2F", "/").replace("+", "%20")
         val encodedPath = java.net.URLEncoder.encode(fullPath, "UTF-8").replace("+", "%20")
         return if (isFolder) {
-            "${baseUrl}/file.html?path=${encodedPath}"
+            if (HttpConfig.readOnly.value) {
+                "${baseUrl}/index.html?path=${encodedPath}"
+            }else{
+                "${baseUrl}/file.html?path=${encodedPath}"
+            }
         } else {
             "${baseUrl}/main/files/$path"
         }

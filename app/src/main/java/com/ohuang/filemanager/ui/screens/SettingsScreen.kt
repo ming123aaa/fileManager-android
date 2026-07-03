@@ -235,7 +235,7 @@ private fun ServiceUrlSetting(context: Context) {
         // Web端 入口按钮
         Button(
             onClick = {
-                val intent = Intent(Intent.ACTION_VIEW, HttpConfig.getWebUrl(true).toUri())
+                val intent = Intent(Intent.ACTION_VIEW, HttpConfig.getWebUrl(!HttpConfig.readOnly.value).toUri())
                 context.startActivity(intent)
             },
             modifier = Modifier.fillMaxWidth()
@@ -326,17 +326,24 @@ private fun LocalService(context: Context) {
 
         Button(
             onClick = {
+
+                try {
+                    if (!File(getServiceFilePath(context)).exists()){
+                        File(getServiceFilePath(context)).mkdirs()
+                    }
+                }catch (e: Throwable){}
+
                 LocalFileManagerActivity.start(context, getServiceFilePath(context))
             },
             modifier = Modifier.fillMaxWidth()
         ) {
             Icon(
-                imageVector = Icons.Default.Settings,
+                imageVector = Icons.Default.FileOpen,
                 contentDescription = null,
                 modifier = Modifier.size(20.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Text("本地文件管理")
+            Text("本地服务器文件")
         }
 
         Spacer(modifier = Modifier.height(15.dp))

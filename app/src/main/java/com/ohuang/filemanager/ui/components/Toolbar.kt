@@ -43,7 +43,9 @@ fun Toolbar(
     // 多选模式相关
     isMultiSelectMode: Boolean = false,
     onToggleMultiSelectMode: () -> Unit = {},
-    isLocalFile: Boolean=false
+    isLocalFile: Boolean=false,
+    downloadEnable: Boolean,
+    readOnly : Boolean,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         val mDeviceType= rememberDeviceType()
@@ -101,37 +103,39 @@ fun Toolbar(
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // 多选模式按钮
-            IconButton(onClick = onToggleMultiSelectMode) {
-                Icon(
-                    imageVector = if (isMultiSelectMode) Icons.Default.Close else Icons.Default.CheckCircle,
-                    contentDescription = if (isMultiSelectMode) "退出多选" else "多选",
-                    tint = if (isMultiSelectMode) MaterialTheme.colorScheme.error
-                           else MaterialTheme.colorScheme.onSurface
-                )
+            if (!readOnly||downloadEnable) {
+                // 多选模式按钮
+                IconButton(onClick = onToggleMultiSelectMode) {
+                    Icon(
+                        imageVector = if (isMultiSelectMode) Icons.Default.Close else Icons.Default.CheckCircle,
+                        contentDescription = if (isMultiSelectMode) "退出多选" else "多选",
+                        tint = if (isMultiSelectMode) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.onSurface
+                    )
+                }
             }
 
-            IconButton(onClick = onCreateFolderClick) {
-                Icon(
-                    imageVector = Icons.Default.CreateNewFolder,
-                    contentDescription = "Create folder",
-                    tint = MaterialTheme.colorScheme.onSurface
-                )
-            }
+            if (!readOnly) {
+                IconButton(onClick = onCreateFolderClick) {
+                    Icon(
+                        imageVector = Icons.Default.CreateNewFolder,
+                        contentDescription = "Create folder",
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
 
-            IconButton(onClick = onCreateFileClick) {
-                Icon(
-                    imageVector = Icons.Default.NoteAdd,
-                    contentDescription = "Create file",
-                    tint = MaterialTheme.colorScheme.onSurface
-                )
-            }
+                IconButton(onClick = onCreateFileClick) {
+                    Icon(
+                        imageVector = Icons.Default.NoteAdd,
+                        contentDescription = "Create file",
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
 
-            if (!isLocalFile) {
                 IconButton(onClick = onUploadClick) {
                     Icon(
-                        imageVector = Icons.Default.Upload,
-                        contentDescription = "Upload",
+                        imageVector = if (isLocalFile) Icons.Default.Add else Icons.Default.Upload,
+                        contentDescription = if (isLocalFile) "Import" else "Upload",
                         tint = MaterialTheme.colorScheme.onSurface
                     )
                 }

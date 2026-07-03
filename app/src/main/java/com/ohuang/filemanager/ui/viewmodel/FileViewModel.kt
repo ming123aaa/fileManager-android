@@ -181,7 +181,7 @@ class FileViewModel : ViewModel() {
         }
         _isLoading.value = true
         _errorMessage.value = null
-        val data = ApiService.getAllFiles(path).awaitOrNull { error ->
+        val data = ApiService.getAllFiles(path,true).awaitOrNull { error ->
             _errorMessage.value = error.message ?: "未知错误"
         }
 

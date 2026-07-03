@@ -2,8 +2,10 @@ package com.ohuang.filemanager.server.adapter
 
 import android.util.Log
 import com.ohuang.filemanager.getServiceFilePath
+import com.ohuang.filemanager.getServiceReadOnly
 import com.ohuang.filemanager.server.util.DownloadUtil
 import com.yanzhenjie.andserver.framework.body.FileBody
+import com.yanzhenjie.andserver.framework.body.StringBody
 import com.yanzhenjie.andserver.framework.handler.HandlerAdapter
 import com.yanzhenjie.andserver.framework.handler.MappingHandler
 import com.yanzhenjie.andserver.framework.handler.RequestHandler
@@ -20,6 +22,7 @@ import java.io.IOException
 import java.io.OutputStream
 import java.io.RandomAccessFile
 import java.net.URLDecoder
+import java.net.URLEncoder
 import java.nio.channels.Channels
 
 class DownloadAdapter : HandlerAdapter {
@@ -34,12 +37,45 @@ class DownloadAdapter : HandlerAdapter {
 
     override fun getHandler(request: HttpRequest): RequestHandler? {
         Log.d("DownloadAdapter", "getHandler ${request.path}")
-        return DownloadHandler(basePath =  getServiceFilePath())
+        return DownloadHandler(basePath = getServiceFilePath())
     }
 }
 
+class HtmlAdapter : HandlerAdapter {
+    override fun intercept(request: HttpRequest): Boolean {
+        return getServiceReadOnly() && request.path.startsWith("/file.html")
+    }
 
-class DownloadHandler(var basePath: String) : MappingHandler("", Mapping(), Addition(),null) {
+    override fun getHandler(request: HttpRequest): RequestHandler? {
+
+        return object : MappingHandler("", Mapping(), Addition(), null) {
+            override fun onHandle(
+                request: HttpRequest,
+                response: HttpResponse
+            ): View? {
+                var path=""
+                val parameter = request.getParameter("path")
+                if (parameter!=null){
+                    path= URLEncoder.encode(parameter,"utf-8")
+                }
+                response.setStatus(302)
+                response.addHeader(
+                    "Location",
+                    "/index.html?path=$path"
+                )
+                val stringBody = StringBody("服务器设置了只读模式")
+                response.setBody(stringBody)
+                return ObjectView(true, stringBody)
+            }
+        }
+
+
+    }
+
+}
+
+
+class DownloadHandler(var basePath: String) : MappingHandler("", Mapping(), Addition(), null) {
 
     private fun safePath(basePath: String, path: String?): File {
         var p = path ?: ""
@@ -89,8 +125,8 @@ class DownloadHandler(var basePath: String) : MappingHandler("", Mapping(), Addi
         if (filePath != path) {
             val file = safePath(basePath, filePath)
             val download = DownloadUtil.download(request, response, file, filePath)
-            if (download!=null) {
-                return ObjectView(true,download)
+            if (download != null) {
+                return ObjectView(true, download)
             }
         }
         return ObjectView(false, null)
@@ -107,7 +143,7 @@ class DownloadHandler(var basePath: String) : MappingHandler("", Mapping(), Addi
         val filePath = getFilePath(path)
         if (filePath != path) {
             val file = safePath(basePath, filePath)
-            if (file.exists()){
+            if (file.exists()) {
                 return file.lastModified()
             }
         }
@@ -115,7 +151,8 @@ class DownloadHandler(var basePath: String) : MappingHandler("", Mapping(), Addi
     }
 }
 
-class RandomAccessFileBody(val body:File,val contentLength:Long,val startByte: Long) : FileBody(body) {
+class RandomAccessFileBody(val body: File, val contentLength: Long, val startByte: Long) :
+    FileBody(body) {
 
     override fun contentLength(): Long {
         return contentLength

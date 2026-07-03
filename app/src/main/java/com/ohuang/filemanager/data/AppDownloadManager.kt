@@ -117,7 +117,7 @@ object AppDownloadManager {
         }
     }
 
-    private fun getDownloadDir(): File {
+     fun getDownloadDir(): File {
         val dir = File(
             Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
             "fileManager"

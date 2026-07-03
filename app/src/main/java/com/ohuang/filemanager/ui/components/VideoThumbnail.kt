@@ -172,7 +172,11 @@ fun VideoThumbnail(
 
             val retriever = MediaMetadataRetriever()
             try {
-                retriever.setDataSource(videoUrl, emptyMap())
+                if(videoUrl.contains("://")) {
+                    retriever.setDataSource(videoUrl, emptyMap())
+                }else{
+                    retriever.setDataSource(videoUrl)
+                }
                 val frame: Bitmap? = retriever.frameAtTime
 
                 if (frame != null) {
