@@ -372,7 +372,10 @@ class LocalFileViewModel(private val rootDir: String, initialSubDir: String?) : 
     }
 
     fun deleteFile(file: FileItem) {
-        if (_isLoading.value) return
+        if (_isLoading.value) {
+            showToastMessage("正在删除中,请稍后!")
+            return
+        }
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) {
@@ -390,7 +393,10 @@ class LocalFileViewModel(private val rootDir: String, initialSubDir: String?) : 
     }
 
     fun moveFile(file: FileItem, targetRelativePath: String) {
-        if (_isLoading.value) return
+        if (_isLoading.value) {
+            showToastMessage("正在移动中,请稍后!")
+            return
+        }
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) {
@@ -416,7 +422,10 @@ class LocalFileViewModel(private val rootDir: String, initialSubDir: String?) : 
 
     /** 将选中的 URI 文件导入到当前目录 */
     fun importFiles(context: Context, uris: List<Uri>) {
-        if (uris.isEmpty()) return
+        if (uris.isEmpty()) {
+
+            return
+        }
         viewModelScope.launch {
             _showLoadingDialog.value = true
             var successCount = 0
@@ -674,7 +683,10 @@ class LocalFileViewModel(private val rootDir: String, initialSubDir: String?) : 
 
     /** 导出单个文件/文件夹到 Download/fileManager 目录 */
     fun exportFile(context: Context, file: FileItem) {
-        if (_isLoading.value) return
+        if (_isLoading.value) {
+            showToastMessage("正在导出中,请稍后!")
+            return
+        }
         viewModelScope.launch {
             _showExportDialog.value = false
             _showLoadingDialog.value = true
@@ -706,7 +718,14 @@ class LocalFileViewModel(private val rootDir: String, initialSubDir: String?) : 
 
     /** 批量导出文件到 Download/fileManager 目录 */
     fun exportSelectedFiles(context: Context) {
-        if (_isLoading.value || _selectedFiles.value.isEmpty()) return
+        if (_isLoading.value) {
+            showToastMessage("正在导出中,请稍后!")
+            return
+        }
+        if (_selectedFiles.value.isEmpty()) {
+            showToastMessage("请先选择要导出的文件!")
+            return
+        }
         viewModelScope.launch {
             _showBatchExportDialog.value = false
             _showLoadingDialog.value = true
@@ -741,7 +760,14 @@ class LocalFileViewModel(private val rootDir: String, initialSubDir: String?) : 
     }
 
     fun deleteSelectedFiles() {
-        if (_isLoading.value || _selectedFiles.value.isEmpty()) return
+        if (_isLoading.value) {
+            showToastMessage("正在删除中,请稍后!")
+            return
+        }
+        if (_selectedFiles.value.isEmpty()) {
+            showToastMessage("请先选择要删除的文件!")
+            return
+        }
         viewModelScope.launch {
             var successCount = 0
             var failCount = 0
@@ -764,7 +790,14 @@ class LocalFileViewModel(private val rootDir: String, initialSubDir: String?) : 
     }
 
     fun moveSelectedFiles(targetRelativePath: String) {
-        if (_isLoading.value || _selectedFiles.value.isEmpty()) return
+        if (_isLoading.value) {
+            showToastMessage("正在移动中,请稍后!")
+            return
+        }
+        if (_selectedFiles.value.isEmpty()) {
+            showToastMessage("请先选择要移动的文件!")
+            return
+        }
         viewModelScope.launch {
             var successCount = 0
             var failCount = 0
@@ -1081,7 +1114,7 @@ fun LocalFileManagerScreen(
                     onToggleMultiSelectMode = { viewModel.toggleMultiSelectMode() },
                     isLocalFile = true,
                     downloadEnable = downloadEnable,
-                    readOnly=readOnly
+                    readOnly = readOnly
                 )
 
                 Divider()

@@ -1,6 +1,7 @@
 package com.ohuang.filemanager.ui.viewmodel
 
 import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.snapshots.SnapshotStateMap
@@ -373,6 +374,7 @@ class FileViewModel : ViewModel() {
 
     fun deleteFile(file: FileItem) {
         if (_isLoading.value) {
+            showToastMessage("正在删除中,请稍后!")
             return
         }
         _isLoading.value = true
@@ -403,6 +405,7 @@ class FileViewModel : ViewModel() {
 
     fun moveFile(file: FileItem, targetPath: String) {
         if (_isLoading.value) {
+            showToastMessage("正在移动中,请稍后!")
             return
         }
         _isLoading.value = true
@@ -483,6 +486,7 @@ class FileViewModel : ViewModel() {
 
     fun saveFileContent(file: FileItem, content: String) {
         if (_isLoading.value) {
+            showToastMessage("正在保存中,请稍后!")
             return
         }
 
@@ -899,7 +903,12 @@ class FileViewModel : ViewModel() {
      * 批量删除选中的文件
      */
     fun deleteSelectedFiles() {
-        if (_isLoading.value || _selectedFiles.value.isEmpty()) {
+        if (_isLoading.value) {
+            showToastMessage("正在删除中,请稍后!")
+            return
+        }
+        if (_selectedFiles.value.isEmpty()) {
+            showToastMessage("请先选择要删除的文件")
             return
         }
         _isLoading.value = true
@@ -943,7 +952,12 @@ class FileViewModel : ViewModel() {
      * 批量移动选中的文件
      */
     fun moveSelectedFiles(targetPath: String) {
-        if (_isLoading.value || _selectedFiles.value.isEmpty()) {
+        if (_isLoading.value) {
+            showToastMessage("正在移动中,请稍后!")
+            return
+        }
+        if (_selectedFiles.value.isEmpty()) {
+            showToastMessage("请先选择要移动的文件")
             return
         }
         _isLoading.value = true

@@ -1,17 +1,20 @@
 package com.ohuang.filemanager.data
 
+import android.content.Context
+import android.content.Intent
+import android.media.MediaScannerConnection
+import android.media.MediaScannerConnection.OnScanCompletedListener
+import android.os.Build
 import android.os.Environment
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import com.ohuang.filemanager.server.util.AppContext
+import com.ohuang.filemanager.service.DownloadService
+import com.ohuang.filemanager.util.MediaRefreshHelper
 import com.ohuang.filemanager.util.SPUtil
 import com.ohuang.kthttp.call.awaitOrNull
 import com.ohuang.kthttp.call.throwCancellationException
 import com.ohuang.kthttp.httpCallRetryOnFailure
-import android.content.Context
-import android.content.Intent
-import android.os.Build
-import com.ohuang.filemanager.service.DownloadService
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -26,6 +29,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.LinkedList
+
 
 object AppDownloadManager {
 
@@ -383,6 +387,8 @@ object AppDownloadManager {
                             totalSize = totalSize
                         )
                     }
+                    //文件刷新
+                    MediaRefreshHelper.refreshFileSimple(AppContext.instance,task.localFile.absolutePath)
                 } else {
                     updateTaskIf(taskId, { true }) {
                         it.copy(status = DownloadTask.Status.FAILED, errorMessage = msg)
@@ -393,6 +399,8 @@ object AppDownloadManager {
             }
         }
     }
+
+
 
     /**
      * 下载文件夹：扫描后逐个文件下载，聚合进度到单个任务
@@ -476,6 +484,7 @@ object AppDownloadManager {
             var downloadedBytes = task.downloadedSize
             var completedFiles = task.completedFiles
             var errorFiles = 0
+            val refreshPaths = mutableListOf<String>()
 
             for (index in completedFiles until fileInfos.size) {
                 val (serverPath, localFile, fileSize) = fileInfos[index]
@@ -552,6 +561,13 @@ object AppDownloadManager {
                         it.copy(downloadedSize = downloadedBytes, completedFiles = completedFiles)
                     }
                 }
+                //收集已下载文件路径，循环结束后批量刷新媒体库
+                refreshPaths.add(localFile.absolutePath)
+            }
+
+            // 批量刷新媒体库（单次 MediaScannerConnection 调用，避免多文件时的 IPC 开销）
+            if (refreshPaths.isNotEmpty()) {
+                MediaRefreshHelper.refreshFilesSimple(AppContext.instance, refreshPaths.toTypedArray())
             }
 
             if (errorFiles > 0) {
