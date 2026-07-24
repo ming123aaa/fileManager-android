@@ -1,5 +1,6 @@
 package com.ohuang.filemanager.ui.navigation
 
+import android.annotation.SuppressLint
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
@@ -8,23 +9,29 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.ohuang.filemanager.config.HttpConfig
 import com.ohuang.filemanager.ui.screens.DownloadScreen
 import com.ohuang.filemanager.ui.screens.FileManagerScreen
 import com.ohuang.filemanager.ui.screens.SettingsScreen
+import com.ohuang.filemanager.ui.screens.TextEditorScreen
+import com.ohuang.filemanager.ui.viewmodel.FileViewModel
 import com.ohuang.filemanager.ui.utils.DeviceType
 import com.ohuang.filemanager.ui.utils.FragmentBox
 import com.ohuang.filemanager.ui.utils.rememberDeviceType
 import com.ohuang.filemanager.ui.utils.rememberSettingScreenWidth
 
+@SuppressLint("UnrememberedGetBackStackEntry")
 @Composable
 fun AppNavHost(onBack: () -> Unit = {}) {
     val navController = rememberNavController()
@@ -97,6 +104,34 @@ fun AppNavHost(onBack: () -> Unit = {}) {
 
         composable("downloads") {
             DownloadScreen(navController, onBack = { navController.navigateUp() })
+        }
+
+        composable("textEditor") {
+            val fileManagerEntry =
+                navController.getBackStackEntry("fileManager")
+
+            val viewModel: FileViewModel = viewModel(fileManagerEntry)
+            val previewFile by viewModel.previewFile.collectAsState()
+            val editFileContent by viewModel.editFileContent.collectAsState()
+            val readOnly by HttpConfig.readOnly.collectAsState()
+            val defaultEditMode by viewModel.defaultEditMode.collectAsState()
+
+
+            if (previewFile != null) {
+                TextEditorScreen(
+                    filePath = viewModel.getFullPath(previewFile!!),
+                    fileName = previewFile!!.getFileName(),
+                    initialContent = editFileContent,
+                    readOnly = readOnly,
+                    defaultEditMode = defaultEditMode,
+                    isRemote = true,
+                    onBack = { navController.navigateUp() },
+                    onSaved = { content ->
+                        viewModel.saveFileContent(previewFile!!, content)
+                        navController.navigateUp()
+                    }
+                )
+            }
         }
     }
 }

@@ -103,6 +103,10 @@ class LocalFileViewModel(private val rootDir: String, initialSubDir: String?) : 
     val showMoveDialog: StateFlow<Boolean> = _showMoveDialog
     private val _showEditDialog = MutableStateFlow(false)
     val showEditDialog: StateFlow<Boolean> = _showEditDialog
+    private val _showTextEditor = MutableStateFlow(false)
+    val showTextEditor: StateFlow<Boolean> = _showTextEditor
+    private val _defaultEditMode = MutableStateFlow(false)
+    val defaultEditMode: StateFlow<Boolean> = _defaultEditMode
     private val _showLoadingDialog = MutableStateFlow(false)
     val showLoadingDialog: StateFlow<Boolean> = _showLoadingDialog
 
@@ -472,7 +476,7 @@ class LocalFileViewModel(private val rootDir: String, initialSubDir: String?) : 
 
     // ==================== 文本编辑 ====================
 
-    fun readFileContent(file: FileItem) {
+    fun readFileContent(file: FileItem, defaultEditMode: Boolean = false) {
         viewModelScope.launch {
             try {
                 _showLoadingDialog.value = true
@@ -494,7 +498,8 @@ class LocalFileViewModel(private val rootDir: String, initialSubDir: String?) : 
                 if (content != null) {
                     _previewFile.value = file
                     _editFileContent.value = content
-                    _showEditDialog.value = true
+                    _defaultEditMode.value = defaultEditMode
+                    _showTextEditor.value = true
                 }
             } catch (e: Exception) {
                 _showLoadingDialog.value = false
@@ -895,6 +900,13 @@ class LocalFileViewModel(private val rootDir: String, initialSubDir: String?) : 
         _editFileContent.value = ""
     }
 
+    fun hideTextEditor() {
+        _showTextEditor.value = false
+        _previewFile.value = null
+        _editFileContent.value = ""
+        _defaultEditMode.value = false
+    }
+
     fun showToastMessage(message: String) {
         _showToast.value = message
         viewModelScope.launch { delay(2000); _showToast.value = null }
@@ -991,6 +1003,8 @@ fun LocalFileManagerScreen(
     val showDeleteDialog by viewModel.showDeleteDialog.collectAsState()
     val showMoveDialog by viewModel.showMoveDialog.collectAsState()
     val showEditDialog by viewModel.showEditDialog.collectAsState()
+    val showTextEditor by viewModel.showTextEditor.collectAsState()
+    val defaultEditMode by viewModel.defaultEditMode.collectAsState()
     val showLoadingDialog by viewModel.showLoadingDialog.collectAsState()
 
     val renameFile by viewModel.renameFile.collectAsState()
@@ -1169,7 +1183,7 @@ fun LocalFileManagerScreen(
                             }
                         },
                         onPreview = { file -> },
-                        onEditString = { file -> viewModel.readFileContent(file) },
+                        onEditString = { file -> viewModel.readFileContent(file, defaultEditMode = true) },
                         onDownload = { file ->
                             viewModel.showExportDialog(file)
                         },
@@ -1308,6 +1322,21 @@ fun LocalFileManagerScreen(
                 )
             }
         })
+    // 文本编辑器全屏界面
+    if (showTextEditor && previewFile != null) {
+        TextEditorScreen(
+            filePath = viewModel.getFullPath(previewFile!!),
+            fileName = previewFile!!.getFileName(),
+            initialContent = editFileContent,
+            readOnly = readOnly,
+            defaultEditMode = defaultEditMode,
+            isRemote = false,
+            onBack = { viewModel.hideTextEditor() },
+            onSaved = {
+                viewModel.hideTextEditor()
+            }
+        )
+    }
     LoadingDialog(show = showLoadingDialog)
     if (downloadEnable) {
         // 导出单个文件对话框

@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -42,6 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.constraintlayout.compose.State
+import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.MutableLiveData
 import com.ohuang.filemanager.config.HttpConfig
 import com.ohuang.filemanager.service.UploadService
@@ -149,6 +151,26 @@ class UploadActivity : ComponentActivity() {
     }
 }
 
+/**
+ * 递归遍历 DocumentFile 树，收集所有文件的 Uri
+ */
+private fun collectFilesFromTree(context: Context, treeUri: Uri): List<Uri> {
+    val fileUris = mutableListOf<Uri>()
+    val rootDoc = DocumentFile.fromTreeUri(context, treeUri) ?: return fileUris
+    collectFilesRecursive(context, rootDoc, fileUris)
+    return fileUris
+}
+
+private fun collectFilesRecursive(context: Context, document: DocumentFile, result: MutableList<Uri>) {
+    if (document.isDirectory) {
+        document.listFiles().forEach { child ->
+            collectFilesRecursive(context, child, result)
+        }
+    } else if (document.isFile) {
+        result.add(document.uri)
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun UploadScreen(
@@ -190,6 +212,19 @@ private fun UploadScreen(
         if (uris != null && uris.isNotEmpty()) {
             selectedUris = (selectedUris + uris).distinctBy { it.toString() }
             getBinder()?.getLivedata()?.postValue("")
+        }
+    }
+
+    // 文件夹选择器
+    val folderPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            val fileUris = collectFilesFromTree(context, uri)
+            if (fileUris.isNotEmpty()) {
+                selectedUris = (selectedUris + fileUris).distinctBy { it.toString() }
+                getBinder()?.getLivedata()?.postValue("")
+            }
         }
     }
 
@@ -356,19 +391,38 @@ private fun UploadScreen(
 
                 else -> {
                     if (selectedUris.isEmpty()) {
-                        Button(
-                            onClick = { filePickerLauncher.launch(arrayOf("*/*")) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(48.dp),
-                            shape = RoundedCornerShape(12.dp)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.InsertDriveFile,
-                                contentDescription = null
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("选择文件")
+                            Button(
+                                onClick = { filePickerLauncher.launch(arrayOf("*/*")) },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.InsertDriveFile,
+                                    contentDescription = null
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("选择文件")
+                            }
+                            OutlinedButton(
+                                onClick = { folderPickerLauncher.launch(null) },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CreateNewFolder,
+                                    contentDescription = null
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("选择文件夹")
+                            }
                         }
                     } else {
                         Row(
@@ -386,7 +440,20 @@ private fun UploadScreen(
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("添加")
+                                Text("添加文件")
+                            }
+                            OutlinedButton(
+                                onClick = { folderPickerLauncher.launch(null) },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CreateNewFolder,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("添加文件夹")
                             }
                             OutlinedButton(
                                 onClick = { filePickerLauncher.launch(arrayOf("*/*")) },

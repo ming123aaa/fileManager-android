@@ -553,12 +553,12 @@ object AndServerManager {
                     isRunning = false
 
                     msgList.removeIf { it.type == ServiceType.MSG }
-                    Toast.makeText(context, "运行失败,请检查端口和网络", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "启动服务失败", Toast.LENGTH_SHORT).show()
                     startServiceFair = true
                     msgList.add(
                         ServiceMsg(
                             type = ServiceType.THROW,
-                            msg = "运行失败,请检查端口和网络: ${e?.message}\n${e?.stackTraceToString()}"
+                            msg = "启动服务失败,请检查端口和网络(需要wifi环境): ${e?.message}\n${e?.stackTraceToString()}"
                         )
                     )
                     restartCall()

@@ -47,7 +47,7 @@
             android:exported="true"
             android:screenOrientation="unspecified"
             android:configChanges="screenLayout|screenSize|orientation|keyboardHidden|mcc|mnc|fontScale|density|locale|layoutDirection"
-            android:windowSoftInputMode="adjustPan|stateHidden">
+            android:windowSoftInputMode="adjustResize|stateHidden">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -113,7 +113,7 @@
             android:exported="false"
             android:screenOrientation="unspecified"
             android:configChanges="screenLayout|screenSize|orientation|keyboardHidden|mcc|mnc|fontScale|density|locale|layoutDirection"
-            android:windowSoftInputMode="adjustPan|stateHidden">
+            android:windowSoftInputMode="adjustResize|stateHidden">
         </activity>
 
         <activity android:name=".ui.screens.PowerSavingActivity"

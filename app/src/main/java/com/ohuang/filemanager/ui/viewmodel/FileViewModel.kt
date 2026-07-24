@@ -29,6 +29,15 @@ data class FolderTreeNode(
     val hasSubfolders: Boolean? = null
 )
 
+// 文本编辑器导航数据
+data class TextEditorNavData(
+    val filePath: String,
+    val fileName: String,
+    val content: String,
+    val file: FileItem,
+    val defaultEditMode: Boolean = false
+)
+
 // 视图模式枚举
 enum class ViewMode {
     GRID,    // 网格模式
@@ -90,6 +99,9 @@ class FileViewModel : ViewModel() {
     private val _showEditDialog = MutableStateFlow(false)
     val showEditDialog: StateFlow<Boolean> = _showEditDialog
 
+    private val _navigateToTextEditor = MutableStateFlow<TextEditorNavData?>(null)
+    val navigateToTextEditor: StateFlow<TextEditorNavData?> = _navigateToTextEditor
+
     private val _showDownloadDialog = MutableStateFlow(false)
     val showDownloadDialog: StateFlow<Boolean> = _showDownloadDialog
 
@@ -129,6 +141,9 @@ class FileViewModel : ViewModel() {
 
     private val _editFileContent = MutableStateFlow("")
     val editFileContent: StateFlow<String> = _editFileContent
+
+    private val _defaultEditMode = MutableStateFlow(false)
+    val defaultEditMode: StateFlow<Boolean> = _defaultEditMode
 
     private val _downloadFile = MutableStateFlow<FileItem?>(null)
     val downloadFile: StateFlow<FileItem?> = _downloadFile
@@ -442,7 +457,7 @@ class FileViewModel : ViewModel() {
         return fileInfo
     }
 
-    fun readFileContent(file: FileItem) {
+    fun readFileContent(file: FileItem, defaultEditMode: Boolean = false) {
 
         val fullPath = getFullPath(file)
 
@@ -478,7 +493,14 @@ class FileViewModel : ViewModel() {
             if (content != null) {
                 _previewFile.value = file
                 _editFileContent.value = content
-                _showEditDialog.value = true
+                _defaultEditMode.value = defaultEditMode
+                _navigateToTextEditor.value = TextEditorNavData(
+                    filePath = fullPath,
+                    fileName = file.getFileName(),
+                    content = content,
+                    file = file,
+                    defaultEditMode = defaultEditMode
+                )
             }
 
         }
@@ -739,6 +761,11 @@ class FileViewModel : ViewModel() {
         _showEditDialog.value = false
         _previewFile.value = null
         _editFileContent.value = ""
+        _defaultEditMode.value = false
+    }
+
+    fun clearNavigateToTextEditor() {
+        _navigateToTextEditor.value = null
     }
 
     fun showToastMessage(message: String) {

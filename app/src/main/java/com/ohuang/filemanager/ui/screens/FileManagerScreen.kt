@@ -133,6 +133,7 @@ fun FileManagerScreen(
     val moveTargetPath by viewModel.moveTargetPath.collectAsState()
     val folderTree by viewModel.folderTree.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
+    val navigateToTextEditor by viewModel.navigateToTextEditor.collectAsState()
 
     // 多选模式相关状态
     val isMultiSelectMode by viewModel.isMultiSelectMode.collectAsState()
@@ -372,7 +373,7 @@ fun FileManagerScreen(
                         },
                         onEditString = { file ->
                             // 打开文本编辑弹窗
-                            viewModel.readFileContent(file)
+                            viewModel.readFileContent(file, defaultEditMode = true)
                         },
                         onDownload = { file ->
                             viewModel.showDownloadDialog(file)
@@ -549,16 +550,13 @@ fun FileManagerScreen(
 
     }
 
-    EditDialog(
-        show = showEditDialog,
-        file = previewFile,
-        content = editFileContent,
-        onDismiss = { viewModel.hideEditDialog() },
-        onSave = { content ->
-            previewFile?.let { file -> viewModel.saveFileContent(file, content) }
-        },
-        readOnly = readOnly
-    )
+    // 导航到文本编辑器
+    LaunchedEffect(navigateToTextEditor) {
+        navigateToTextEditor?.let {
+            navController.navigate("textEditor")
+            viewModel.clearNavigateToTextEditor()
+        }
+    }
 
     if (downloadEnable) {
         checkStoragePermission(context, showDownloadDialog or showBatchDownloadDialog)
