@@ -5,31 +5,31 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.database.Cursor
 import android.net.Uri
 import android.os.Binder
 import android.os.Build
-import android.os.FileUtils
+import android.os.Environment
 import android.os.IBinder
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
-import androidx.documentfile.provider.DocumentFile
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.MutableLiveData
 import com.ohuang.filemanager.R
 import com.ohuang.filemanager.data.ApiService
+import com.ohuang.filemanager.data.DownloadTask
 import com.ohuang.filemanager.statedata.StateData
 import com.ohuang.filemanager.util.UriToFile
 import com.ohuang.kthttp.call.HttpCall
 import com.ohuang.kthttp.call.await
-import com.ohuang.kthttp.call.awaitOrNull
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileInputStream
-import kotlin.jvm.Throws
+
+data class UploadFileInfo(val uri: Uri, val relativePath: String)
 
 class UploadService : Service() {
     override fun onCreate() {
@@ -161,50 +161,59 @@ class UploadService : Service() {
             val successFiles = mutableListOf<String>()
             val failFiles = mutableListOf<String>()
 
-            // 先将 tree URI 展开为文件 URI 列表
+            // 先将 tree URI 展开为文件信息列表（包含相对路径）
             liveData.postValue("正在扫描文件夹...")
-            val allFileUris = mutableListOf<Uri>()
+            val allFileInfos = mutableListOf<UploadFileInfo>()
             for (uri in fileUris) {
                 if (DocumentsContract.isTreeUri(uri)) {
-                    collectFilesFromTree(uri, allFileUris)
+                    collectFilesFromTree(uri, allFileInfos)
                 } else {
-                    allFileUris.add(uri)
+                    allFileInfos.add(UploadFileInfo(uri, ""))
                 }
             }
 
-            for ((index, fileUri) in allFileUris.withIndex()) {
+            var lastUpdateTime = 0L
+
+            for ((index, fileInfo) in allFileInfos.withIndex()) {
                 if (!isUploading.value) {
                     break
                 }
                 if (isCannel) {
                     break
                 }
-                val fileName = getFileName(uri = fileUri)
+                val fileName = getFileName(uri = fileInfo.uri)
 
                 var file: FileInputStream?=null
                 try {
-                    file = UriToFile.uriToFileInputStream(fileUri, this@UploadService)
+                    file = UriToFile.uriToFileInputStream(fileInfo.uri, this@UploadService)
                 } catch (e: Throwable) {
                     e.printStackTrace()
                 }
-                if (file == null) {
-                    failFiles.add("$fileName--file is null")
-                    continue
-                }
+
                 val num = index + 1
 
+                if (file == null) {
+                    failFiles.add(fileInfo.relativePath+"/"+fileName+"--file is null")
+                    continue
+                }
 
-                liveData.postValue("正在上传 ($num/${allFileUris.size}): $fileName")
-                showProgress("正在上传 ($num/${allFileUris.size}): $fileName")
-                var lastUpdateTime = 0L
-                call = ApiService.uploadFile(file = file, fileName = fileName,path= path) { current, total ->
+                val uploadPath = if (fileInfo.relativePath.isEmpty()) path else "$path/${fileInfo.relativePath}"
+
+                val now = System.currentTimeMillis()
+                if (now - lastUpdateTime > 500 ) {
+                    lastUpdateTime= System.currentTimeMillis()
+                    liveData.postValue("正在上传 ($num/${allFileInfos.size}): $fileName \n准备上传")
+                    showProgress("正在上传 ($num/${allFileInfos.size}): $fileName")
+                }
+
+                call = ApiService.uploadFile(file = file, fileName = fileName, path = uploadPath) { current, total ->
                     val now = System.currentTimeMillis()
-                    if (now - lastUpdateTime > 500 || current == total) {
+                    if (now - lastUpdateTime > 500 ) {
                         lastUpdateTime= System.currentTimeMillis()
                         val s =
-                            "${(current / (1024 * 1024 * 1.0f)).toFixed()}MB/${(total / (1024 * 1024 * 1.0f)).toFixed()}MB"
+                            "${DownloadTask.formatBytes(current)}/${DownloadTask.formatBytes(total )}"
                         val progress =
-                            "正在上传 ($num/${allFileUris.size}): $fileName \n上传中:${(current * 100 / total)}%  $s"
+                            "正在上传 ($num/${allFileInfos.size}): $fileName \n上传中:${(current * 100 / total)}%  $s"
                         liveData.postValue(progress)
                     }
 
@@ -212,28 +221,29 @@ class UploadService : Service() {
 
                 try {
                     val result = call?.await()
-                    call == null
+                    call = null
                     successFiles.add("$fileName--$result")
                 } catch (e: Throwable) {
-                    failFiles.add((fileName + "--" + e.message))
+                    failFiles.add((fileInfo.relativePath+"/"+fileName + "--" + e.message))
+                }finally {
+                    clearFileCheche()
                 }
-
 
 
             }
 
             delay(10)
-            clearFileCheche()
+
             isCannel = false
             isUploading.postValue(false)
             val message = StringBuilder().apply {
-                append("上传完成,共${allFileUris.size}个文件\n")
+                append("上传完成,共${allFileInfos.size}个文件\n")
 
                 if (failFiles.isNotEmpty()) {
                     append("失败${failFiles.size}个文件 :" + failFiles + "\n")
                 }
                 if (successFiles.isNotEmpty()) {
-                    append("成功${successFiles.size}个文件 :" + successFiles)
+                    append("成功${successFiles.size}个文件" )
                 }
 
 
@@ -247,24 +257,20 @@ class UploadService : Service() {
     private fun getFileName(uri: Uri): String {
         var name: String? = null
         try {
-
             contentResolver.query(uri, null, null, null, null)?.use { cursor ->
                 val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
                 if (cursor.moveToFirst() && nameIndex >= 0) {
                     name = cursor.getString(nameIndex)
                 }
             }
-            if (name==null){
+            if (name == null) {
                 val strs = uri.toString().split("/")
-                name=strs.lastOrNull()
+                name = strs.lastOrNull()?.let { Uri.decode(it) }
             }
-        }catch (e: Throwable){
-
-        }finally {
-
+        } catch (e: Throwable) {
         }
 
-        return name?:"未知文件_${System.currentTimeMillis()}"
+        return name ?: "未知文件_${System.currentTimeMillis()}"
     }
 
     fun clearFileCheche() {
@@ -276,19 +282,104 @@ class UploadService : Service() {
         }
     }
 
-    /** 递归遍历 DocumentFile 树，收集所有文件的 Uri */
-    private fun collectFilesFromTree(treeUri: Uri, result: MutableList<Uri>) {
-        val rootDoc = DocumentFile.fromTreeUri(this, treeUri) ?: return
-        collectFilesRecursive(rootDoc, result)
+    /** 使用文件遍历方式收集目录树中的所有文件信息（包含相对路径） */
+    private fun collectFilesFromTree(treeUri: Uri, result: MutableList<UploadFileInfo>) {
+        val rootPath = uriToPath(treeUri)
+        if (rootPath != null) {
+            val rootDir = File(rootPath)
+            if (rootDir.exists() && rootDir.isDirectory) {
+                rootDir.walkTopDown().forEach { file ->
+                    if (file.isFile) {
+                        val fullRelativePath = file.absolutePath.removePrefix(rootDir.absolutePath).removePrefix("/")
+                        val dirPath = fullRelativePath.substringBeforeLast("/", "")
+                        val relativePath = if (dirPath.isEmpty()) rootDir.name else "${rootDir.name}/$dirPath"
+                        result.add(UploadFileInfo(Uri.fromFile(file), relativePath))
+                    }
+                }
+                return
+            }
+        }
+        val rootDocId = DocumentsContract.getTreeDocumentId(treeUri)
+        val rootDisplayName = queryDocumentDisplayName(treeUri, rootDocId)
+        collectFilesRecursiveFallback(treeUri, rootDocId, rootDisplayName, result)
     }
 
-    private fun collectFilesRecursive(document: DocumentFile, result: MutableList<Uri>) {
-        if (document.isDirectory) {
-            document.listFiles().forEach { child ->
-                collectFilesRecursive(child, result)
+    private fun uriToPath(uri: Uri): String? {
+        return try {
+            val docId = DocumentsContract.getTreeDocumentId(uri)
+            val split = docId.split(":")
+            val type = split[0]
+            if ("primary".equals(type, ignoreCase = true)) {
+                "${Environment.getExternalStorageDirectory().absolutePath}/${Uri.decode(split[1])}"
+            } else {
+                null
             }
-        } else if (document.isFile) {
-            result.add(document.uri)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun queryDocumentDisplayName(treeUri: Uri, docId: String): String {
+        val documentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
+        var cursor: Cursor? = null
+        return try {
+            cursor = contentResolver.query(
+                documentUri,
+                arrayOf(DocumentsContract.Document.COLUMN_DISPLAY_NAME),
+                null,
+                null,
+                null
+            )
+            if (cursor != null && cursor.moveToFirst()) {
+                cursor.getString(0) ?: extractNameFromDocId(docId)
+            } else {
+                extractNameFromDocId(docId)
+            }
+        } catch (e: Exception) {
+            extractNameFromDocId(docId)
+        } finally {
+            cursor?.close()
+        }
+    }
+
+    private fun extractNameFromDocId(docId: String): String {
+        return docId.split(":").lastOrNull()?.substringAfterLast("/")?.let { Uri.decode(it) } ?: "unknown"
+    }
+
+    private fun collectFilesRecursiveFallback(treeUri: Uri, docId: String, relativePath: String, result: MutableList<UploadFileInfo>) {
+        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, docId)
+        var cursor: Cursor? = null
+        try {
+            cursor = contentResolver.query(
+                childrenUri,
+                arrayOf(
+                    DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                    DocumentsContract.Document.COLUMN_MIME_TYPE,
+                    DocumentsContract.Document.COLUMN_DISPLAY_NAME
+                ),
+                null,
+                null,
+                null
+            )
+            if (cursor == null) return
+
+            while (cursor.moveToNext()) {
+                val childDocId = cursor.getString(0)
+                val mimeType = cursor.getString(1)
+                val displayName = cursor.getString(2) ?: "unknown"
+                val childUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, childDocId)
+
+                if (DocumentsContract.Document.MIME_TYPE_DIR == mimeType) {
+                    val newRelativePath = if (relativePath.isEmpty()) displayName else "$relativePath/$displayName"
+                    collectFilesRecursiveFallback(treeUri, childDocId, newRelativePath, result)
+                } else {
+                    result.add(UploadFileInfo(childUri, relativePath))
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        } finally {
+            cursor?.close()
         }
     }
 

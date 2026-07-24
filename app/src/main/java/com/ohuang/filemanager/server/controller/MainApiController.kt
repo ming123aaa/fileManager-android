@@ -77,6 +77,7 @@ class MainApiController {
         val dir = safePath(basePath, path)
         val dest = File(dir, safeFileName)
         return try {
+            dir.mkdirs()
             file.transferTo(dest)
             "上传成功"
         } catch (e: Exception) {

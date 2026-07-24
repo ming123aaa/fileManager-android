@@ -53,7 +53,7 @@ object AppDownloadManager {
 
     /** 下载间隔 */
     private val _downloadInterval =
-        MutableStateFlow(SPUtil.get(AppContext.instance, "_downloadInterval", 50L) as Long)
+        MutableStateFlow(SPUtil.get(AppContext.instance, "_downloadInterval", 10L) as Long)
     val downloadInterval: StateFlow<Long> = _downloadInterval
 
     /** 覆盖文件 */
@@ -67,7 +67,7 @@ object AppDownloadManager {
     val folderFairContinue: StateFlow<Boolean> = _folderFairContinue
 
     fun setDownloadInterval(time: Long) {
-        var fTime = 50L
+        var fTime = 10L
         if (time >= 0 && time <= 1000) {
             fTime = time
         }
@@ -139,8 +139,18 @@ object AppDownloadManager {
         totalSize: Long = 0L
     ): Boolean {
         val task = synchronized(tasksLock) {
-            val exists = tasks.values.any { it.fileName == fileName }
-            if (exists) return false
+            val existsTask = tasks.values.filter { it.fileName == fileName }
+            if (existsTask.isNotEmpty()){
+                val all = existsTask.all { it.status == DownloadTask.Status.COMPLETED }
+                if (all){
+                    clearTasks(existsTask.map { it.id })
+
+                }else{
+                    return false
+                }
+
+
+            }
 
 
             val localFile = File(getDownloadDir(), fileName)

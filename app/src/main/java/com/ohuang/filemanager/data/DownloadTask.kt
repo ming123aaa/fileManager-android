@@ -3,7 +3,7 @@ package com.ohuang.filemanager.data
 import java.io.File
 
 data class DownloadTask(
-    val incrementID: Long= createIncrementId(),
+    val incrementID: Long = createIncrementId(),
     val fileName: String,//文件名
     val serverPath: String,//服务端相对路径 或 http地址
     val localFile: File,//文件保存的位置
@@ -51,12 +51,13 @@ data class DownloadTask(
             else "%.1f %s".format(size, units[unitIndex])
         }
 
-        private var count=0L //自增id
+        private var count = 0L //自增id
 
         /**
          * 创建自增id
          */
-        fun createIncrementId(): Long{
+        @Synchronized
+        fun createIncrementId(): Long {
             return count++
         }
 

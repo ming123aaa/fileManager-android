@@ -1,6 +1,5 @@
 package com.ohuang.filemanager.ui.screens
 
-import android.Manifest
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -9,19 +8,21 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.os.IBinder
+import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -47,13 +48,133 @@ import androidx.lifecycle.MutableLiveData
 import com.ohuang.filemanager.config.HttpConfig
 import com.ohuang.filemanager.service.UploadService
 import com.ohuang.filemanager.ui.theme.FileManagerTheme
+import java.io.File
 
 class UploadActivity : ComponentActivity() {
+
+    private val REQUEST_PERMISSION_CODE = 1001
 
     private var binder: UploadService.DownUpBinder? = null
     private var progressData = mutableStateOf("")
 
     private var isUpLoading = mutableStateOf(false)
+
+    private var pendingAction: String? = null
+    private var pendingAppend: Boolean = false
+
+    private fun checkStoragePermission(): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            return Environment.isExternalStorageManager()
+        }
+        val readGranted = ContextCompat.checkSelfPermission(
+            this,
+            android.Manifest.permission.READ_EXTERNAL_STORAGE
+        ) == PackageManager.PERMISSION_GRANTED
+        val writeGranted = ContextCompat.checkSelfPermission(
+            this,
+            android.Manifest.permission.WRITE_EXTERNAL_STORAGE
+        ) == PackageManager.PERMISSION_GRANTED
+        return readGranted && writeGranted
+    }
+
+    private fun requestStoragePermission(action: String, append: Boolean = false) {
+        pendingAction = action
+        pendingAppend = append
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                intent.data = Uri.parse("package:${packageName}")
+                startActivity(intent)
+            } catch (e: Exception) {
+                val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                startActivity(intent)
+            }
+        } else {
+            requestPermissions(
+                arrayOf(
+                    android.Manifest.permission.READ_EXTERNAL_STORAGE,
+                    android.Manifest.permission.WRITE_EXTERNAL_STORAGE
+                ),
+                REQUEST_PERMISSION_CODE
+            )
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_PERMISSION_CODE) {
+            val allGranted = grantResults.all { it == PackageManager.PERMISSION_GRANTED }
+            if (allGranted) {
+                when (pendingAction) {
+                    "folder" -> {
+                        val intent = android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT_TREE)
+                        startActivityForResult(intent, 2001)
+                    }
+                    "file" -> {
+                        val intent = android.content.Intent(android.content.Intent.ACTION_GET_CONTENT).apply {
+                            addCategory(android.content.Intent.CATEGORY_OPENABLE)
+                            type = "*/*"
+                            putExtra(android.content.Intent.EXTRA_ALLOW_MULTIPLE, true)
+                        }
+                        startActivityForResult(intent, 2002)
+                    }
+                }
+            } else {
+                android.widget.Toast.makeText(this, "需要存储权限才能选择文件或文件夹", android.widget.Toast.LENGTH_SHORT).show()
+            }
+            pendingAction = null
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (resultCode == RESULT_OK) {
+            when (requestCode) {
+                2001 -> {
+                    data?.data?.let { uri ->
+                        onFolderSelected.invoke(listOf(uri))
+                    }
+                }
+                2002 -> {
+                    val uris = mutableListOf<Uri>()
+                    if (data?.clipData != null) {
+                        for (i in 0 until data.clipData!!.itemCount) {
+                            uris.add(data.clipData!!.getItemAt(i).uri)
+                        }
+                    } else {
+                        data?.data?.let { uris.add(it) }
+                    }
+                    if (uris.isNotEmpty()) {
+                        onFilesSelected.invoke(uris, pendingAppend)
+                    }
+                }
+            }
+        }
+    }
+
+    var onFilesSelected: (List<Uri>, Boolean) -> Unit = { _, _ -> }
+    var onFolderSelected: (List<Uri>) -> Unit = {}
+
+    override fun onResume() {
+        super.onResume()
+        if (pendingAction != null && checkStoragePermission()) {
+            when (pendingAction) {
+                "folder" -> {
+                    val intent = android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT_TREE)
+                    startActivityForResult(intent, 2001)
+                }
+                "file" -> {
+                    val intent = android.content.Intent(android.content.Intent.ACTION_GET_CONTENT).apply {
+                        addCategory(android.content.Intent.CATEGORY_OPENABLE)
+                        type = "*/*"
+                        putExtra(android.content.Intent.EXTRA_ALLOW_MULTIPLE, true)
+                    }
+                    startActivityForResult(intent, 2002)
+                }
+            }
+            pendingAction = null
+        }
+    }
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, service: IBinder) {
@@ -124,21 +245,72 @@ class UploadActivity : ComponentActivity() {
                     getBinder = { binder },
                     onBack = { finish() },
                     progressData = progressData.value,
-                    isUploading=isUpLoading.value
+                    isUploading = isUpLoading.value,
+                    onPickFiles = { isAppend ->
+                        if (checkStoragePermission()) {
+                            val intent = android.content.Intent(android.content.Intent.ACTION_GET_CONTENT).apply {
+                                addCategory(android.content.Intent.CATEGORY_OPENABLE)
+                                type = "*/*"
+                                putExtra(android.content.Intent.EXTRA_ALLOW_MULTIPLE, true)
+                            }
+                            pendingAppend = isAppend
+                            startActivityForResult(intent, 2002)
+                        } else {
+                            requestStoragePermission("file", isAppend)
+                        }
+                    },
+                    onPickFolder = {
+                        if (checkStoragePermission()) {
+                            val intent = android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT_TREE)
+                            startActivityForResult(intent, 2001)
+                        } else {
+                            requestStoragePermission("folder")
+                        }
+                    }
                 )
             }
         }
     }
 
-    private fun getFileName(uri: Uri): String? {
-        var name: String? = null
-        contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-            if (cursor.moveToFirst() && nameIndex >= 0) {
-                name = cursor.getString(nameIndex)
+    private fun uriToPath(uri: Uri): String? {
+        return try {
+            val docId = android.provider.DocumentsContract.getTreeDocumentId(uri)
+            val split = docId.split(":")
+            val type = split[0]
+            if ("primary".equals(type, ignoreCase = true)) {
+                "${Environment.getExternalStorageDirectory().absolutePath}/${split[1]}"
+            } else {
+                split[1]
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
         }
-        return name
+    }
+
+    private fun getFileName(uri: Uri): String? {
+        val uriToPath = uriToPath(uri)
+        if (uriToPath != null) {
+            return Uri.decode(File(uriToPath).name)
+        }
+        return getNotDirFileName(uri)
+    }
+
+
+    private fun getNotDirFileName(uri: Uri): String? {
+        var name: String? = null
+        try {
+            contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (cursor.moveToFirst() && nameIndex >= 0) {
+                    name = cursor.getString(nameIndex)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        return name?.let { Uri.decode(it) }
     }
 
     override fun onDestroy() {
@@ -159,61 +331,34 @@ private fun UploadScreen(
     getBinder: () -> UploadService.DownUpBinder?,
     onBack: () -> Unit,
     progressData: String,
-    isUploading: Boolean
+    isUploading: Boolean,
+    onPickFiles: (Boolean) -> Unit,
+    onPickFolder: () -> Unit
 ) {
     var selectedUris by remember { mutableStateOf(initialUris) }
 
-    val context = LocalContext.current
-
-    val readPermissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        arrayOf(
-            Manifest.permission.READ_MEDIA_IMAGES,
-            Manifest.permission.READ_MEDIA_VIDEO,
-            Manifest.permission.READ_MEDIA_AUDIO,
-            Manifest.permission.POST_NOTIFICATIONS
-        )
-    } else {
-        arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+    val handleFilesSelected: (List<Uri>, Boolean) -> Unit = { uris, isAppend ->
+        selectedUris = if (isAppend) {
+            (selectedUris + uris).distinctBy { it.toString() }
+        } else {
+            uris
+        }
+        getBinder()?.getLivedata()?.postValue("")
     }
 
-    val filePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenMultipleDocuments()
-    ) { uris: List<Uri>? ->
-        if (uris != null && uris.isNotEmpty()) {
-            selectedUris = uris
-            getBinder()?.getLivedata()?.postValue("")
-        }
+    val handleFolderSelected: (List<Uri>) -> Unit = { uris ->
+        selectedUris = (selectedUris + uris).distinctBy { it.toString() }
+        getBinder()?.getLivedata()?.postValue("")
     }
+    val current = LocalContext.current
 
-    val addFileLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenMultipleDocuments()
-    ) { uris: List<Uri>? ->
-        if (uris != null && uris.isNotEmpty()) {
-            selectedUris = (selectedUris + uris).distinctBy { it.toString() }
-            getBinder()?.getLivedata()?.postValue("")
-        }
-    }
-
-    // 文件夹选择器：直接传递 tree URI，由 UploadService 在上传时遍历
-    val folderPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocumentTree()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            selectedUris = (selectedUris + uri).distinctBy { it.toString() }
-            getBinder()?.getLivedata()?.postValue("")
-        }
-    }
-
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { _ -> }
-
-    LaunchedEffect(Unit) {
-        val allGranted = readPermissions.all {
-            ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
-        }
-        if (!allGranted) {
-            permissionLauncher.launch(readPermissions)
+    DisposableEffect(Unit) {
+        val activity = current as UploadActivity
+        activity.onFilesSelected = { uris, isAppend -> handleFilesSelected(uris, isAppend) }
+        activity.onFolderSelected = handleFolderSelected
+        onDispose {
+            activity.onFilesSelected = { _, _ -> }
+            activity.onFolderSelected = {}
         }
     }
 
@@ -270,7 +415,7 @@ private fun UploadScreen(
                     .size(80.dp)
                     .clickable {
                         if (!isUploading) {
-                            addFileLauncher.launch(arrayOf("*/*"))
+                            onPickFiles(false)
                         }
                     }
             )
@@ -291,6 +436,26 @@ private fun UploadScreen(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(
+                            onClick = { selectedUris = emptyList() },
+                            enabled = !isUploading,
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DeleteSweep,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("全部清空")
+                        }
+                    }
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -304,7 +469,7 @@ private fun UploadScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.InsertDriveFile,
+                                    imageVector = if (DocumentsContract.isTreeUri(uri)) Icons.Default.Folder else Icons.Default.InsertDriveFile,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(20.dp)
@@ -372,7 +537,7 @@ private fun UploadScreen(
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Button(
-                                onClick = { filePickerLauncher.launch(arrayOf("*/*")) },
+                                onClick = { onPickFiles(false) },
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(48.dp),
@@ -386,7 +551,7 @@ private fun UploadScreen(
                                 Text("选择文件")
                             }
                             OutlinedButton(
-                                onClick = { folderPickerLauncher.launch(null) },
+                                onClick = { onPickFolder() },
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(48.dp),
@@ -406,7 +571,7 @@ private fun UploadScreen(
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             OutlinedButton(
-                                onClick = { addFileLauncher.launch(arrayOf("*/*")) },
+                                onClick = { onPickFiles(true) },
                                 modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(12.dp)
                             ) {
@@ -419,7 +584,7 @@ private fun UploadScreen(
                                 Text("添加文件")
                             }
                             OutlinedButton(
-                                onClick = { folderPickerLauncher.launch(null) },
+                                onClick = { onPickFolder() },
                                 modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(12.dp)
                             ) {
@@ -431,19 +596,7 @@ private fun UploadScreen(
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text("添加文件夹")
                             }
-                            OutlinedButton(
-                                onClick = { filePickerLauncher.launch(arrayOf("*/*")) },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.InsertDriveFile,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("重新选择")
-                            }
+
                         }
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(

@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -357,6 +358,24 @@ class DataMigrationActivity : ComponentActivity() {
                 }
             )
 
+
+            TextField(
+                value = targetFilePath,
+                onValueChange = { targetFilePath = it },
+                label = { Text("选择或输入目标文件夹路径") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                trailingIcon = {
+                    IconButton(onClick = {
+                        ClipboardUtils.copyText(targetFilePath, this@DataMigrationActivity)
+                        Toast.makeText(this@DataMigrationActivity, "已复制", Toast.LENGTH_SHORT).show()
+                    }) {
+                        Icon(imageVector = Icons.Default.ContentCopy, contentDescription = "复制")
+                    }
+                }
+            )
+
+
             Button(onClick = {
                 if (checkStoragePermission()) {
                     directoryLauncher.launch(null)
@@ -372,24 +391,6 @@ class DataMigrationActivity : ComponentActivity() {
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("选择目标文件夹")
             }
-            TextField(
-                value = targetFilePath,
-                onValueChange = { targetFilePath = it },
-                label = { Text("选择或输入目标文件夹路径") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                trailingIcon = {
-                    IconButton(onClick = {
-                        ClipboardUtils.copyText(targetFilePath, this@DataMigrationActivity)
-                        Toast.makeText(this@DataMigrationActivity, "已复制", Toast.LENGTH_SHORT).show()
-                    }) {
-                        Icon(imageVector = Icons.Default.Output, contentDescription = "复制")
-                    }
-                }
-            )
-
-
-
 
             Spacer(modifier = Modifier.height(15.dp))
             fun moveDir(isMoveToLocal: Boolean, isCopy: Boolean = true) {
