@@ -43,7 +43,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.constraintlayout.compose.State
-import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.MutableLiveData
 import com.ohuang.filemanager.config.HttpConfig
 import com.ohuang.filemanager.service.UploadService
@@ -151,26 +150,6 @@ class UploadActivity : ComponentActivity() {
     }
 }
 
-/**
- * 递归遍历 DocumentFile 树，收集所有文件的 Uri
- */
-private fun collectFilesFromTree(context: Context, treeUri: Uri): List<Uri> {
-    val fileUris = mutableListOf<Uri>()
-    val rootDoc = DocumentFile.fromTreeUri(context, treeUri) ?: return fileUris
-    collectFilesRecursive(context, rootDoc, fileUris)
-    return fileUris
-}
-
-private fun collectFilesRecursive(context: Context, document: DocumentFile, result: MutableList<Uri>) {
-    if (document.isDirectory) {
-        document.listFiles().forEach { child ->
-            collectFilesRecursive(context, child, result)
-        }
-    } else if (document.isFile) {
-        result.add(document.uri)
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun UploadScreen(
@@ -215,16 +194,13 @@ private fun UploadScreen(
         }
     }
 
-    // 文件夹选择器
+    // 文件夹选择器：直接传递 tree URI，由 UploadService 在上传时遍历
     val folderPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { uri: Uri? ->
         if (uri != null) {
-            val fileUris = collectFilesFromTree(context, uri)
-            if (fileUris.isNotEmpty()) {
-                selectedUris = (selectedUris + fileUris).distinctBy { it.toString() }
-                getBinder()?.getLivedata()?.postValue("")
-            }
+            selectedUris = (selectedUris + uri).distinctBy { it.toString() }
+            getBinder()?.getLivedata()?.postValue("")
         }
     }
 

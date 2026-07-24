@@ -10,7 +10,9 @@ import android.os.Binder
 import android.os.Build
 import android.os.FileUtils
 import android.os.IBinder
+import android.provider.DocumentsContract
 import android.provider.OpenableColumns
+import androidx.documentfile.provider.DocumentFile
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.MutableLiveData
 import com.ohuang.filemanager.R
@@ -159,7 +161,18 @@ class UploadService : Service() {
             val successFiles = mutableListOf<String>()
             val failFiles = mutableListOf<String>()
 
-            for ((index, fileUri) in fileUris.withIndex()) {
+            // 先将 tree URI 展开为文件 URI 列表
+            liveData.postValue("正在扫描文件夹...")
+            val allFileUris = mutableListOf<Uri>()
+            for (uri in fileUris) {
+                if (DocumentsContract.isTreeUri(uri)) {
+                    collectFilesFromTree(uri, allFileUris)
+                } else {
+                    allFileUris.add(uri)
+                }
+            }
+
+            for ((index, fileUri) in allFileUris.withIndex()) {
                 if (!isUploading.value) {
                     break
                 }
@@ -181,8 +194,8 @@ class UploadService : Service() {
                 val num = index + 1
 
 
-                liveData.postValue("正在上传 ($num/${fileUris.size}): $fileName")
-                showProgress("正在上传 ($num/${fileUris.size}): $fileName")
+                liveData.postValue("正在上传 ($num/${allFileUris.size}): $fileName")
+                showProgress("正在上传 ($num/${allFileUris.size}): $fileName")
                 var lastUpdateTime = 0L
                 call = ApiService.uploadFile(file = file, fileName = fileName,path= path) { current, total ->
                     val now = System.currentTimeMillis()
@@ -191,7 +204,7 @@ class UploadService : Service() {
                         val s =
                             "${(current / (1024 * 1024 * 1.0f)).toFixed()}MB/${(total / (1024 * 1024 * 1.0f)).toFixed()}MB"
                         val progress =
-                            "正在上传 ($num/${fileUris.size}): $fileName \n上传中:${(current * 100 / total)}%  $s"
+                            "正在上传 ($num/${allFileUris.size}): $fileName \n上传中:${(current * 100 / total)}%  $s"
                         liveData.postValue(progress)
                     }
 
@@ -214,7 +227,7 @@ class UploadService : Service() {
             isCannel = false
             isUploading.postValue(false)
             val message = StringBuilder().apply {
-                append("上传完成,共${fileUris.size}个文件\n")
+                append("上传完成,共${allFileUris.size}个文件\n")
 
                 if (failFiles.isNotEmpty()) {
                     append("失败${failFiles.size}个文件 :" + failFiles + "\n")
@@ -260,6 +273,22 @@ class UploadService : Service() {
             cacheDir1.deleteRecursively()
         } catch (e: Throwable) {
 
+        }
+    }
+
+    /** 递归遍历 DocumentFile 树，收集所有文件的 Uri */
+    private fun collectFilesFromTree(treeUri: Uri, result: MutableList<Uri>) {
+        val rootDoc = DocumentFile.fromTreeUri(this, treeUri) ?: return
+        collectFilesRecursive(rootDoc, result)
+    }
+
+    private fun collectFilesRecursive(document: DocumentFile, result: MutableList<Uri>) {
+        if (document.isDirectory) {
+            document.listFiles().forEach { child ->
+                collectFilesRecursive(child, result)
+            }
+        } else if (document.isFile) {
+            result.add(document.uri)
         }
     }
 
