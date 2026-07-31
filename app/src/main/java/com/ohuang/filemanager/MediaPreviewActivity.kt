@@ -209,6 +209,8 @@ class MediaPreviewActivity : ComponentActivity() {
     }
 }
 
+private val timeNextMap:Map<Long, Long> = mapOf(0L to 5_000L,5_000L to 10_000L,10_000L to 0L)
+
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun MediaPreviewScreen(
@@ -225,17 +227,19 @@ fun MediaPreviewScreen(
     }
 
     val context = LocalContext.current
-    val isAutoNextDefault = SPUtil.get(context, "media_preview_auto_next", false) as Boolean
-    val isLockScrollDefault = SPUtil.get(context, "media_preview_lock_scroll", false) as Boolean
-    var isAutoNext by rememberSaveable { mutableStateOf(isAutoNextDefault) }
-    var isLockScroll by rememberSaveable { mutableStateOf(isLockScrollDefault) }
+
+    val auto_time = SPUtil.get(context, "media_preview_auto_time", 0L) as Long
+    val lock_scroll = SPUtil.get(context, "media_preview_lock_scroll", false) as Boolean
+    var isAutoNext by rememberSaveable { mutableStateOf(auto_time>0L&&timeNextMap.contains(auto_time)) }
+    var autoNextTime by rememberSaveable { mutableStateOf(auto_time) }
+    var isLockScroll by rememberSaveable { mutableStateOf(lock_scroll) }
     val pagerState = rememberPagerState(initialPage = initialIndex) { if (isLoop) 100000 else mediaList.size }
     val currentPage by remember { derivedStateOf { pagerState.currentPage } }
     val currentPageOffsetFraction by remember { derivedStateOf { pagerState.currentPageOffsetFraction } }
     var selectPage by rememberSaveable { mutableStateOf(currentPage) }
     LaunchedEffect(currentPage, currentPageOffsetFraction) {
-        if (currentPageOffsetFraction == 0f) {
-            delay(200)//需要停留一段时间 才认为是选中状态
+        if (currentPageOffsetFraction <= 3f && currentPageOffsetFraction>=-3f) {
+            delay(300)//需要停留一段时间 才认为是选中状态
             selectPage = currentPage
         }
     }
@@ -330,7 +334,8 @@ fun MediaPreviewScreen(
                                 }
                             }
 
-                        }
+                        },
+                        nextTimeout = autoNextTime
                     )
                 }
             }
@@ -372,20 +377,31 @@ fun MediaPreviewScreen(
                     Row {
 
                         if (isPageFlippingEnabled) {
-                            IconButton(onClick = {
-                                isAutoNext = !isAutoNext
-                                SPUtil.put(context, "media_preview_auto_next", isAutoNext)
+                            IconButton (onClick =  {
+                                autoNextTime= timeNextMap[autoNextTime] ?:0L
+                                isAutoNext = autoNextTime>0L&&timeNextMap.contains(autoNextTime)
+                                SPUtil.put(context, "media_preview_auto_time", autoNextTime)
                                 Toast.makeText(
                                     context, if (isAutoNext) "自动翻页" else "循环播放",
                                     Toast.LENGTH_SHORT
                                 ).show()
-
                             }) {
-                                Icon(
-                                    imageVector = if (isAutoNext) Icons.Default.FastForward else Icons.Default.Repeat,
-                                    contentDescription = "自动翻页/循环播放",
-                                    tint = Color.White
-                                )
+                                Column() {
+                                    Icon(
+                                        modifier = Modifier.align(Alignment.CenterHorizontally),
+                                        imageVector = if (isAutoNext) Icons.Default.FastForward else Icons.Default.Repeat,
+                                        contentDescription = "自动翻页/循环播放",
+                                        tint = Color.White
+                                    )
+                                    if (isAutoNext) {
+                                        Text(
+                                            modifier = Modifier.align(Alignment.CenterHorizontally),
+                                            text = "${autoNextTime / 1000}s",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
                             }
                         }
                         if (isPageFlippingEnabled) {
@@ -451,7 +467,8 @@ fun ZoomableImage(
     onScaleChanged: (Float) -> Unit,
     isAutoNext: Boolean,
     onNext: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    nextTimeout: Long=15_000
 ) {
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
@@ -459,8 +476,10 @@ fun ZoomableImage(
 
     LaunchedEffect(url, isAutoNext,isActive) {
         if (isAutoNext&&isActive) {
-            delay(15_000)
-            onNext()
+            delay(nextTimeout)
+            if(scale<=1.1f) {
+                onNext()
+            }
         }
 
     }
