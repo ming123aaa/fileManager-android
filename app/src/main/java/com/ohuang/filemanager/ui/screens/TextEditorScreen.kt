@@ -1,13 +1,17 @@
 package com.ohuang.filemanager.ui.screens
 
+import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
+import android.text.InputType
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.widget.AppCompatEditText
@@ -20,7 +24,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -39,6 +42,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableLongStateOf
@@ -46,9 +50,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -57,7 +65,6 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.widget.addTextChangedListener
 import com.ohuang.filemanager.ui.utils.DeviceType
@@ -125,7 +132,7 @@ fun TextEditorScreen(
                     if (!readOnly) {
 
                         // 编辑模式下显示保存按钮
-                        if (isEditMode) {
+                        if (hasChanges) {
                             IconButton(
                                 onClick = {
                                     scope.launch {
@@ -162,9 +169,7 @@ fun TextEditorScreen(
 
                         // 切换查看/编辑模式按钮
                         IconButton(onClick = {
-                            if (isEditMode) {
-                                hasChanges = false
-                            }
+                            hasChanges = editContent!=initialContent
                             isEditMode = !isEditMode
                         }) {
                             Icon(
@@ -206,7 +211,9 @@ fun TextEditorScreen(
                         text = editContent,
                         onTextChange = {
                             editContent = it
-                            hasChanges = true
+                            if (initialContent.length!=editContent.length) {
+                                hasChanges = true
+                            }
                         },
                         modifier = Modifier
                             .fillMaxSize()
@@ -215,7 +222,9 @@ fun TextEditorScreen(
                             fontSize = textStyle.fontSize,
                             color = textStyle.color,
                             hint = "当前无内容",
-                            fontWeight = textStyle.fontWeight
+                            fontWeight = textStyle.fontWeight,
+                            lineHeight = textStyle.lineHeight,
+
                         )
                     )
 
@@ -226,18 +235,22 @@ fun TextEditorScreen(
             } else {
                 // 查看模式：干净无边框，支持点击链接
                 val scrollState = rememberScrollState()
-                val annotatedString = buildLinkAnnotatedString(initialContent)
+                val annotatedString = buildLinkAnnotatedString(editContent)
 
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(scrollState)
+                        .padding(horizontal = innerPadding)
                         .padding(horizontal = contentPadding, vertical = verticalPadding)
                 ) {
                     key(selectionKey) {
                         SelectionContainer {
                             ClickableText(
-                                modifier = Modifier.fillMaxWidth().heightIn(min = 300.dp).padding(vertical = verticalPadding ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 300.dp)
+                                    .padding(vertical = verticalPadding),
                                 text = annotatedString,
                                 style = textStyle,
                                 onClick = { offset ->
@@ -310,14 +323,17 @@ private fun buildLinkAnnotatedString(text: String): AnnotatedString {
 
 data class EditTextStyle(
     val color: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Black,
-    val fontSize: TextUnit = 12.sp,
+    val fontSize: TextUnit? = null,
     val gravity: Int = Gravity.START or Gravity.TOP,
     val hint: String = "",
     val hintColor: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Gray,
-    val fontWeight:FontWeight ?= FontWeight.Normal,
-    val italic: Boolean=false
+    val fontWeight: FontWeight? = FontWeight.Normal,
+    val italic: Boolean = false,
+    val lineHeight: TextUnit? = null
+
 )
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun EditTextCompose(
     modifier: Modifier,
@@ -326,6 +342,16 @@ fun EditTextCompose(
     onTextChange: (String) -> Unit
 ) {
 
+
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    DisposableEffect(Unit) {
+
+        onDispose {
+            // 在需要关闭键盘的地方调用
+            keyboardController?.hide()
+        }
+    }
 
     AndroidView(factory = { context ->
         AppCompatEditText(context).apply {
@@ -343,16 +369,22 @@ fun EditTextCompose(
         if (editText.text.toString() != text) {
             editText.setText(text)
         }
-        if (style.fontSize.isSp) {
+        if (style.fontSize?.isSp == true) {
             editText.setTextSize(TypedValue.COMPLEX_UNIT_SP, style.fontSize.value)
         }
+        if (style.lineHeight?.isSp == true) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                editText.setLineHeight(TypedValue.COMPLEX_UNIT_SP, style.lineHeight.value)
+            }
+        }
+
+
 
         editText.gravity = style.gravity
 
         editText.setTextColor(style.color.toArgb())
         editText.setHintTextColor(style.hintColor.toArgb())
-
-        editText.hint=style.hint
+        editText.hint = style.hint
 
 
         applyTypeface(style, editText)
@@ -387,6 +419,7 @@ private fun applyTypeface(
                 Typeface.NORMAL
             }
         }
+
         editText.typeface = Typeface.create(editText.typeface, typefaceStyle)
     }
 }
