@@ -1,17 +1,13 @@
 package com.ohuang.filemanager.ui.screens
 
-import android.app.Activity
-import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
-import android.text.InputType
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.ViewGroup
-import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.widget.AppCompatEditText
@@ -53,9 +49,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -286,7 +280,7 @@ fun TextEditorScreen(
 }
 
 private val URL_PATTERN = Regex(
-    """https?://[^\s"'<>，。；;！!？?）\)】\]】〗]+|www\.[^\s"'<>，。；;！!？?）\)】\]】〗]+""",
+    """https?://[^\s"'<>，。；;！!）\)】\]】〗]+|www\.[^\s"'<>，。；;！!）\)】\]】〗]+""",
     RegexOption.IGNORE_CASE
 )
 
