@@ -22,12 +22,12 @@ object ApiService {
 
     private val client = HttpClient()
 
-    fun getAllFiles(path: String,isConnect: Boolean=false): HttpCall<List<FileItem>> {
+    suspend fun getAllFiles(path: String,isConnect: Boolean=false): HttpCall<List<FileItem>> {
         if (isConnect) {
             HttpConfig.connect()
         }
         return client.jsonCall<List<FileItem>> {
-            url(HttpConfig.getBaseUrl() + BASE_PATH + "/getAllFile") {
+            url(HttpConfig.baseUrl + BASE_PATH + "/getAllFile") {
                 if (path.isNotEmpty()) {
                     addParam("path", path)
                 }
@@ -39,7 +39,7 @@ object ApiService {
 
     fun getFileInfo(path: String): HttpCall<FileItem> {
         return client.jsonCall<FileItem> {
-            url(HttpConfig.getBaseUrl() + BASE_PATH + "/fileInfo") {
+            url(HttpConfig.baseUrl + BASE_PATH + "/fileInfo") {
                 addParam("path", path)
             }
         }
@@ -47,7 +47,7 @@ object ApiService {
 
     fun createFolder(name: String, path: String = ""): HttpCall<String> {
         return client.stringCall {
-            url(HttpConfig.getBaseUrl() + BASE_PATH + "/mkdir")
+            url(HttpConfig.baseUrl + BASE_PATH + "/mkdir")
             post {
                 addParam("name", name)
                 addParam("path", path)
@@ -57,7 +57,7 @@ object ApiService {
 
     fun createFile(name: String, path: String = ""): HttpCall<String> {
         return client.stringCall {
-            url(HttpConfig.getBaseUrl() + BASE_PATH + "/createFile")
+            url(HttpConfig.baseUrl + BASE_PATH + "/createFile")
             post {
                 addParam("name", name)
                 addParam("path", path)
@@ -67,7 +67,7 @@ object ApiService {
 
     fun deleteFile(path: String): HttpCall<String> {
         return client.stringCall {
-            url(HttpConfig.getBaseUrl() + BASE_PATH + "/delete")
+            url(HttpConfig.baseUrl + BASE_PATH + "/delete")
             post {
                 addParam("path", path)
             }
@@ -100,7 +100,7 @@ object ApiService {
 
     fun renameFile(path: String, newName: String): HttpCall<String> {
         return client.stringCall {
-            url(HttpConfig.getBaseUrl() + BASE_PATH + "/rename")
+            url(HttpConfig.baseUrl + BASE_PATH + "/rename")
             post {
                 addParam("path", path)
                 addParam("newName", newName)
@@ -110,7 +110,7 @@ object ApiService {
 
     fun moveFile(path: String, targetDir: String): HttpCall<String> {
         return client.stringCall {
-            url(HttpConfig.getBaseUrl() + BASE_PATH + "/move")
+            url(HttpConfig.baseUrl + BASE_PATH + "/move")
             post {
                 addParam("path", path)
                 addParam("targetDir", targetDir)
@@ -120,7 +120,7 @@ object ApiService {
 
     fun readText(path: String, encoding: String = ""): HttpCall<String> {
         return client.stringCall {
-            url(HttpConfig.getBaseUrl() + BASE_PATH + "/readText") {
+            url(HttpConfig.baseUrl + BASE_PATH + "/readText") {
                 addParam("path", path)
                 if (encoding.isNotEmpty()) {
                     addParam("encoding", encoding)
@@ -131,7 +131,7 @@ object ApiService {
 
     fun writeText(path: String, text: String): HttpCall<String> {
         return client.stringCall {
-            url(HttpConfig.getBaseUrl() + BASE_PATH + "/writeText")
+            url(HttpConfig.baseUrl + BASE_PATH + "/writeText")
             post {
                 addParam("path", path)
                 addParam("txt", text)
@@ -144,7 +144,7 @@ object ApiService {
         if (fullPath.startsWith("http://")||fullPath.startsWith("https://")){
             return fullPath
         }
-        val baseUrl = HttpConfig.getBaseUrl()
+        val baseUrl = HttpConfig.baseUrl
         val path =
             java.net.URLEncoder.encode(fullPath, "UTF-8").replace("%2F", "/").replace("+", "%20")
         val encodedPath = java.net.URLEncoder.encode(fullPath, "UTF-8").replace("+", "%20")
@@ -161,7 +161,7 @@ object ApiService {
 
     }
 
-    fun testConnect(baseUrl: String = HttpConfig.getBaseUrl()): HttpCall<String> {
+    fun testConnect(baseUrl: String = HttpConfig.baseUrl): HttpCall<String> {
         return client.stringCall {
             url("$baseUrl/test/connect")
         }
@@ -174,7 +174,7 @@ object ApiService {
         onProgress: (current: Long, totalSize: Long) -> Unit,
     ): HttpCall<String> {
         return client.stringCall {
-            url(HttpConfig.getBaseUrl() + BASE_PATH + "/fileUpload")
+            url(HttpConfig.baseUrl + BASE_PATH + "/fileUpload")
 
             postUploadFile {
                 addFileInputSteam(key = "fileName", file = file, fileName = fileName, callBack = onProgress)

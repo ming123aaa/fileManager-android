@@ -9,8 +9,8 @@ public class MyApp extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
-        HttpConfig.INSTANCE.loadBaseUrl(this);
         AppContext.INSTANCE.init(this);
+        HttpConfig.INSTANCE.loadBaseUrl(this);
         AndServerManager.INSTANCE.autoStart(this);
     }
 }

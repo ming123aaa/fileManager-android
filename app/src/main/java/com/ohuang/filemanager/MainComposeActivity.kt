@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.view.KeyEvent
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
@@ -29,21 +30,32 @@ import com.ohuang.filemanager.util.BatteryOptimizationHelper
 class MainComposeActivity : ComponentActivity() {
 
     private val notificationPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
+            ActivityResultContracts.RequestMultiplePermissions()
     ) { _ -> }
+    private val permissions: List<String> =mutableListOf<String>().apply {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            add(Manifest.permission.BLUETOOTH_CONNECT)
+        }
+
+        add(Manifest.permission.BLUETOOTH)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        // 申请通知权限
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED
-            ) {
-                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+
+            if (permissions.isNotEmpty()&&permissions.any {
+                    ContextCompat.checkSelfPermission(this, it)!= PackageManager.PERMISSION_GRANTED
+                }) {
+                notificationPermissionLauncher.launch(permissions.toTypedArray())
             }
-        }
+
+
+
 
         setContent {
             FileManagerTheme {

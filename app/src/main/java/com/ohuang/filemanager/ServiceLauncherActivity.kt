@@ -63,6 +63,8 @@ import com.ohuang.filemanager.config.HttpConfig
 import com.ohuang.filemanager.server.MutableWebServer
 import com.ohuang.filemanager.server.adapter.DownloadAdapter
 import com.ohuang.filemanager.server.adapter.HtmlAdapter
+import com.ohuang.filemanager.server.scan.DeviceInfo
+import com.ohuang.filemanager.server.scan.DeviceResponder
 import com.ohuang.filemanager.server.util.AppContext
 import com.ohuang.filemanager.ui.theme.FileManagerTheme
 import com.ohuang.filemanager.util.ClipboardUtils
@@ -469,6 +471,7 @@ object AndServerManager {
         }
     }
 
+    var mDeviceResponder: DeviceResponder?=null
 
     val msgList = SnapshotStateList<ServiceMsg>()
 
@@ -527,6 +530,8 @@ object AndServerManager {
         startServiceFair = false
         msgList.clear()
 
+
+
         server = MutableWebServer.builder(context)
             .addAdapter(DownloadAdapter())
             .addAdapter(HtmlAdapter())
@@ -539,11 +544,23 @@ object AndServerManager {
                     msgList.add(ServiceMsg(msg = "访问地址:http://$ip:$port"))
                     msgList.add(ServiceMsg(msg = "http://$ip:$port"))
                     url = "http://$ip:$port"
+                    mDeviceResponder=DeviceResponder(DeviceInfo(deviceId = AppContext.getDeviceID(),
+                        deviceName = AppContext.getDeviceName(),
+                         host = ip, port = port ))
+                    mDeviceResponder?.start { error ->
+                        msgList.add(
+                            ServiceMsg(
+                                type = ServiceType.ERROR,
+                                msg = "绑定设备功能异常，请通过地址绑定服务:"+error.message
+                            )
+                        )
+                    }
                 }
 
                 override fun onStopped() {
                     isRunning = false
-
+                    mDeviceResponder?.stop()
+                    mDeviceResponder=null
                     msgList.removeIf { it.type == ServiceType.MSG }
                     msgList.add(ServiceMsg(type = ServiceType.STOP, msg = "服务已停止"))
                     restartCall()
@@ -551,7 +568,8 @@ object AndServerManager {
 
                 override fun onException(e: Exception?) {
                     isRunning = false
-
+                    mDeviceResponder?.stop()
+                    mDeviceResponder=null
                     msgList.removeIf { it.type == ServiceType.MSG }
                     Toast.makeText(context, "启动服务失败", Toast.LENGTH_SHORT).show()
                     startServiceFair = true

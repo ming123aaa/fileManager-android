@@ -1,11 +1,20 @@
 package com.ohuang.filemanager.ui.screens
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.Settings
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,18 +28,23 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Launch
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.NetworkCheck
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SettingsPower
 import androidx.compose.material.icons.filled.Storage
@@ -41,6 +55,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
@@ -48,6 +63,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SmallTopAppBar
@@ -56,6 +72,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -66,6 +83,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.navigation.NavController
 import com.ohuang.filemanager.AndServerManager
@@ -78,6 +96,7 @@ import com.ohuang.filemanager.getDefaultServiceFilePath
 import com.ohuang.filemanager.getPrivateServiceFilePath
 import com.ohuang.filemanager.getServiceFilePath
 import com.ohuang.filemanager.getServicePort
+import com.ohuang.filemanager.server.scan.DeviceBindingManager
 import com.ohuang.filemanager.service.UploadService
 import com.ohuang.filemanager.util.BatteryOptimizationHelper
 import com.ohuang.filemanager.util.ClipboardUtils
@@ -145,10 +164,12 @@ private fun SectionTitle(title: String) {
 
 @Composable
 private fun ServerUrlCard(context: Context) {
-    val serverUrl = remember { mutableStateOf(HttpConfig.getBaseUrl()) }
+    val serverUrl = remember { mutableStateOf(HttpConfig.baseUrl) }
     var isTipSave by remember { mutableStateOf(false) }
     var testMsg by remember { mutableStateOf("") }
+    val connectDeviceId by DeviceBindingManager.connectDeviceId.collectAsState()
     val coroutineScope = rememberCoroutineScope()
+
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -158,121 +179,137 @@ private fun ServerUrlCard(context: Context) {
         ),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            // 地址输入行
-            OutlinedTextField(
-                value = serverUrl.value,
-                onValueChange = {
-                    serverUrl.value = it
-                    isTipSave = (serverUrl.value != HttpConfig.getBaseUrl())
-                },
-                label = { Text("服务器地址") },
-                placeholder = { Text("http://localhost:8080") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                trailingIcon = {
-                    if (serverUrl.value.isNotEmpty()) {
-                        IconButton(onClick = {
-                            serverUrl.value = ""
-                            isTipSave = false
-                            testMsg = ""
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.Clear,
-                                contentDescription = "清除",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            )
+
+            DeviceScanSection(connectDeviceId)
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 保存 + 测试连接按钮行
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // 保存按钮（地址修改后显示）
-                if (isTipSave && serverUrl.value.isNotEmpty()) {
-                    FilledTonalButton(
+            if (connectDeviceId.isBlank()) {
+
+
+                HorizontalDivider(modifier = Modifier.height(4.dp))
+
+                Text(
+                    "通过地址绑定",
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.padding(top=6.dp,bottom = 6.dp)
+                )
+                // 地址输入行
+                OutlinedTextField(
+                    value = serverUrl.value,
+                    onValueChange = {
+                        serverUrl.value = it
+                        isTipSave = (serverUrl.value != HttpConfig.baseUrl)
+                    },
+                    label = { Text("服务器地址") },
+                    placeholder = { Text("http://localhost:8080") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    trailingIcon = {
+                        if (serverUrl.value.isNotEmpty()) {
+                            IconButton(onClick = {
+                                serverUrl.value = ""
+                                isTipSave = false
+                                testMsg = ""
+                            }) {
+                                Icon(
+                                    imageVector = Icons.Default.Clear,
+                                    contentDescription = "清除",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // 保存 + 测试连接按钮行
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // 保存按钮（地址修改后显示）
+                    if (isTipSave && serverUrl.value.isNotEmpty()) {
+                        FilledTonalButton(
+                            onClick = {
+                                HttpConfig.saveBaseUrl(context, serverUrl.value)
+                                serverUrl.value = HttpConfig.baseUrl
+                                isTipSave = false
+                                testMsg = ""
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Save,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("保存地址")
+                        }
+                    }
+
+                    // 测试连接按钮
+                    OutlinedButton(
                         onClick = {
-                            HttpConfig.saveBaseUrl(context, serverUrl.value)
-                            serverUrl.value = HttpConfig.getBaseUrl()
-                            isTipSave = false
-                            testMsg = ""
+                            coroutineScope.launch {
+                                testMsg = "正在测试中..."
+                                if (serverUrl.value.startsWith("http://") || serverUrl.value.startsWith("https://")) {
+                                    val data = ApiService.testConnect(serverUrl.value).awaitOrNull {
+                                        testMsg = "连接失败: ${it.message}"
+                                    }
+                                    if (data != null) {
+                                        testMsg = data
+                                    }
+                                } else {
+                                    testMsg = "请输入正确的地址"
+                                }
+                            }
                         },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
+                        modifier = if (isTipSave && serverUrl.value.isNotEmpty()) Modifier.weight(1f) else Modifier.fillMaxWidth()
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Save,
+                            imageVector = Icons.Default.NetworkCheck,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("保存地址")
+                        Text("测试连接")
                     }
                 }
 
-                // 测试连接按钮
-                OutlinedButton(
-                    onClick = {
-                        coroutineScope.launch {
-                            testMsg = "正在测试中..."
-                            if (serverUrl.value.startsWith("http://") || serverUrl.value.startsWith("https://")) {
-                                val data = ApiService.testConnect(serverUrl.value).awaitOrNull {
-                                    testMsg = "连接失败: ${it.message}"
-                                }
-                                if (data != null) {
-                                    testMsg = data
-                                }
-                            } else {
-                                testMsg = "请输入正确的地址"
-                            }
-                        }
-                    },
-                    modifier = if (isTipSave && serverUrl.value.isNotEmpty()) Modifier.weight(1f) else Modifier.fillMaxWidth()
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.NetworkCheck,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("测试连接")
-                }
-            }
+                // 测试结果
+                if (testMsg.isNotEmpty()) {
 
-            // 测试结果
-            if (testMsg.isNotEmpty()) {
-
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = if (testMsg.contains("失败") || testMsg.contains("错误"))
-                        MaterialTheme.colorScheme.errorContainer
-                    else
-                        MaterialTheme.colorScheme.primaryContainer,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = testMsg,
-                        style = MaterialTheme.typography.bodySmall,
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
                         color = if (testMsg.contains("失败") || testMsg.contains("错误"))
-                            MaterialTheme.colorScheme.onErrorContainer
+                            MaterialTheme.colorScheme.errorContainer
                         else
-                            MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        maxLines = 2
-                    )
+                            MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = testMsg,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (testMsg.contains("失败") || testMsg.contains("错误"))
+                                MaterialTheme.colorScheme.onErrorContainer
+                            else
+                                MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            maxLines = 2
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+
+
             }
-
-
 
             // 网页端入口
             OutlinedButton(
@@ -420,7 +457,8 @@ private fun LocalServiceCard(context: Context) {
                     try {
                         val path = getServiceFilePath(context)
                         if (!File(path).exists()) File(path).mkdirs()
-                    } catch (_: Throwable) {}
+                    } catch (_: Throwable) {
+                    }
                     LocalFileManagerActivity.start(context, getServiceFilePath(context))
                 }
             )
@@ -436,6 +474,8 @@ private fun LocalServiceCard(context: Context) {
                 }
             )
 
+
+
             SettingsItem(
                 icon = Icons.Default.DarkMode,
                 title = "黑屏省电",
@@ -445,6 +485,7 @@ private fun LocalServiceCard(context: Context) {
         }
     }
 }
+
 
 @Composable
 private fun SettingsItem(
@@ -457,7 +498,9 @@ private fun SettingsItem(
         onClick = onClick,
         shape = RoundedCornerShape(10.dp),
         color = MaterialTheme.colorScheme.surface,
-        modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 5.dp)
     ) {
         Row(
             modifier = Modifier
@@ -675,7 +718,8 @@ private fun DataAndClearCard(context: Context) {
                             try {
                                 File(getDefaultServiceFilePath()).deleteRecursively()
                                 File(getPrivateServiceFilePath()).deleteRecursively()
-                            } catch (_: Throwable) {}
+                            } catch (_: Throwable) {
+                            }
                             withContext(Dispatchers.Main) {
                                 job.cancel()
                                 Toast.makeText(context, "清除完成", Toast.LENGTH_SHORT).show()
@@ -839,7 +883,8 @@ private fun getFolderSize(file: java.io.File): Long {
         } else {
             size += file.length()
         }
-    } catch (_: Exception) {}
+    } catch (_: Exception) {
+    }
     return size
 }
 
@@ -859,13 +904,321 @@ private fun clearCache(context: Context, onComplete: () -> Unit) {
             try {
                 context.cacheDir?.deleteRecursively()
                 context.externalCacheDir?.deleteRecursively()
-                java.io.File("${context.cacheDir}/image_cache").deleteRecursively()
-                java.io.File("${context.cacheDir}/thumbnails").deleteRecursively()
                 context.cacheDir?.mkdirs()
                 context.externalCacheDir?.mkdirs()
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+            }
         }
         Toast.makeText(context, "缓存清理完成", Toast.LENGTH_SHORT).show()
         onComplete()
+    }
+}
+
+
+@Composable
+private fun DeviceScanSection(
+    currentBoundDeviceId: String
+
+) {
+    val scope = rememberCoroutineScope()
+
+    val boundDevices by DeviceBindingManager.boundDevices.collectAsState()
+    val discoveredDevices by DeviceBindingManager.scanDevices.collectAsState()
+    var isScanning by remember { mutableStateOf(false) }
+    var scanError by remember { mutableStateOf<String?>(null) }
+    var connectMsg by remember { mutableStateOf<String>("") }
+
+    // 已绑定设备
+    if (boundDevices.isNotEmpty()) {
+        Text(
+            "绑定设备",
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+
+        boundDevices.sortedBy { device ->
+            val isActive = currentBoundDeviceId == device.deviceId
+            return@sortedBy !isActive
+        }.forEach { device ->
+            val isActive = currentBoundDeviceId == device.deviceId
+
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 3.dp),
+                shape = MaterialTheme.shapes.medium,
+                color = if (isActive) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.background,
+                tonalElevation = if (isActive) 2.dp else 0.dp
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    ) {
+                        if (isActive) {
+                            Icon(
+                                Icons.Default.Check,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Column {
+                            Text(
+                                device.deviceName,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                device.baseUrl,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        if (isActive) {
+                            FilledTonalButton(
+                                onClick = {
+                                    DeviceBindingManager.unbindDevice()
+                                },
+                                colors = ButtonDefaults.filledTonalButtonColors().copy(
+                                    contentColor =
+                                        MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+                                ),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                modifier = Modifier.height(32.dp)
+                            ) {
+                                Text("断开", style = MaterialTheme.typography.labelMedium)
+                            }
+                        } else {
+
+                            FilledTonalButton(
+                                onClick = {
+                                    scope.launch {
+                                        connectMsg = ""
+                                        DeviceBindingManager.bindDevice(device)
+                                        connectMsg = ApiService.testConnect().awaitOrNull() ?: "连接失败"
+                                    }
+                                },
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                modifier = Modifier.height(32.dp)
+                            ) {
+                                Text("连接", style = MaterialTheme.typography.labelMedium)
+                            }
+                        }
+                        IconButton(
+                            onClick = {
+                                if (isActive) {
+                                    DeviceBindingManager.unbindDevice()
+                                }
+                                DeviceBindingManager.deleteDevice(device.deviceId)
+
+                            },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "解绑",
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+                            )
+                        }
+                    }
+                }
+            }
+            if (isActive && connectMsg.isNotEmpty()) {
+                Text(
+                    "状态:$connectMsg",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (connectMsg.contains("成功")||connectMsg.contains("success")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+        }
+
+    }
+    Spacer(modifier = Modifier.height(12.dp))
+    // 扫描按钮
+    Button(
+        onClick = {
+            scope.launch {
+                isScanning = true
+                scanError = null
+                try {
+                    DeviceBindingManager.scan()
+                } catch (e: Exception) {
+                    scanError = "扫描失败: ${e.message}"
+                }
+                isScanning = false
+            }
+        },
+        enabled = !isScanning,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(44.dp),
+        shape = MaterialTheme.shapes.medium,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.tertiary,
+            contentColor = MaterialTheme.colorScheme.onTertiary
+        )
+    ) {
+        if (isScanning) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(18.dp),
+                strokeWidth = 2.dp,
+                color = MaterialTheme.colorScheme.onTertiary
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text("正在扫描局域网设备...")
+        } else {
+            Icon(
+                Icons.Default.Search,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text("扫描局域网设备")
+        }
+    }
+
+    // 扫描结果
+    if (discoveredDevices.isNotEmpty()) {
+
+
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Icon(
+                Icons.Default.Devices,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                "发现 ${discoveredDevices.size} 台设备",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+
+
+        discoveredDevices.forEach { device ->
+            OutlinedCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 3.dp)
+
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                ) {
+
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Devices,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                device.deviceName,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                        Text(
+                            device.baseUrl,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 22.dp)
+                        )
+                    }
+                    val isActive = currentBoundDeviceId == device.deviceId
+                    val isBound = boundDevices.any { it.deviceId == device.deviceId }
+                    if (isBound) {
+                        if (isActive) {
+                            FilledTonalButton(
+                                onClick = {
+                                    DeviceBindingManager.unbindDevice()
+                                },
+                                colors = ButtonDefaults.filledTonalButtonColors().copy(
+                                    contentColor =
+                                        MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+                                ),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                modifier = Modifier.height(32.dp)
+                            ) {
+                                Text("断开", style = MaterialTheme.typography.labelMedium)
+                            }
+                        } else {
+                            FilledTonalButton(
+                                onClick = {
+                                    scope.launch {
+                                        connectMsg = ""
+                                        DeviceBindingManager.bindDevice(device)
+                                        connectMsg = ApiService.testConnect().awaitOrNull() ?: "连接失败"
+                                    }
+                                },
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                modifier = Modifier.height(32.dp)
+                            ) {
+                                Text("连接", style = MaterialTheme.typography.labelMedium)
+                            }
+                        }
+                    } else {
+                        OutlinedButton(
+                            onClick = {
+                                scope.launch {
+                                    connectMsg = ""
+                                    DeviceBindingManager.bindDevice(device)
+                                    connectMsg = ApiService.testConnect().awaitOrNull() ?: "连接失败"
+                                }
+
+                            },
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Icon(Icons.Default.Link, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("绑定", style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                }
+            }
+        }
+
+    }
+
+    // 扫描错误
+    scanError?.let {
+        Spacer(modifier = Modifier.height(8.dp))
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.small,
+            color = MaterialTheme.colorScheme.errorContainer
+        ) {
+            Text(
+                it,
+                modifier = Modifier.padding(12.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onErrorContainer
+            )
+        }
     }
 }
