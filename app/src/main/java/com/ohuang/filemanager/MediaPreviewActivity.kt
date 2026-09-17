@@ -3,6 +3,7 @@ package com.ohuang.filemanager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
+import android.content.res.Configuration
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -200,12 +201,12 @@ class MediaPreviewActivity : ComponentActivity() {
     }
 
     private fun toggleOrientation() {
-        requestedOrientation =
-            if (requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE) {
-                ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
-            } else {
-                ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE
-            }
+        val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        requestedOrientation = if (isLandscape) {
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        }
     }
 }
 
