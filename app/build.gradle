@@ -1,6 +1,7 @@
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.plugin.compose'
     id 'kotlin-kapt'
     id 'com.yanzhenjie.andserver'
 }
@@ -22,10 +23,14 @@ android {
         applicationId "com.ohuang.filemanager"
         minSdk 24
         targetSdk 36
-        versionCode 341
-        versionName "3.4.1"
+        versionCode 350
+        versionName "3.5.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        ndk {
+            abiFilters "x86", "arm64-v8a"
+        }
     }
 
     buildTypes {
@@ -53,10 +58,7 @@ android {
         viewBinding true
         dataBinding true
     }
-    composeOptions {
-        kotlinCompilerExtensionVersion '1.5.3'
     }
-}
 
 dependencies {
     implementation 'androidx.core:core-ktx:1.12.0'
@@ -75,6 +77,10 @@ dependencies {
     // ExoPlayer (Media3)
     implementation "androidx.media3:media3-exoplayer:1.10.1"
     implementation "androidx.media3:media3-ui:1.10.1"
+
+    // NextLib - FFmpeg 软件解码器扩展
+    implementation "io.github.anilbeesetti:nextlib-media3ext:1.10.1-0.13.0"
+    implementation "io.github.anilbeesetti:nextlib-mediainfo:1.10.1-0.13.0"
 
     // Coil 图片加载库
     implementation "io.coil-kt:coil-compose:2.5.0"
