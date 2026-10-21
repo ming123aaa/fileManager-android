@@ -3,6 +3,7 @@ package com.ohuang.filemanager.server.scan
 
 import com.ohuang.kthttp.transform.gsonTransForm
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 import java.net.DatagramPacket
@@ -19,6 +20,7 @@ class DeviceScanner {
 
     private val discoveryPort = getDeviceScannerPort()
     private var cancelled = false
+    private var isScanning=false
 
     fun getBroadcastAddresses(): List<InetAddress> {
         val addresses = mutableListOf<InetAddress>()
@@ -35,8 +37,9 @@ class DeviceScanner {
         return addresses
     }
 
-    suspend fun scan(timeoutMs: Long): List<DeviceInfo> = withContext(Dispatchers.IO) {
+    suspend fun scan(timeoutMs: Long,onUpdate:(List<DeviceInfo>)->Unit={}): List<DeviceInfo> = withContext(Dispatchers.IO) {
         cancelled = false
+        isScanning=true
         val results = mutableListOf<DeviceInfo>()
         var socket: DatagramSocket? = null
         try {
@@ -66,6 +69,7 @@ class DeviceScanner {
 
                     if (results.none { it.deviceId == device.deviceId }) {
                         results.add(device)
+                        onUpdate(results)
                     }
                 } catch (_: SocketTimeoutException) {
                     break
@@ -76,6 +80,7 @@ class DeviceScanner {
                 socket?.close()
             } catch (_: Exception) {
             }
+            isScanning=false
         }
         results
     }

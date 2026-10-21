@@ -991,6 +991,8 @@ function renameItem() {
 function showDeleteModal(name, isFolder) {
   deleteTarget = {name, isFolder};
   document.getElementById('deleteName').textContent = name;
+  document.getElementById('deleteSingleInfo').style.display = 'block';
+  document.getElementById('deleteBatchInfo').style.display = 'none';
   document.getElementById('deleteModal').classList.add('show');
 }
 
@@ -1022,15 +1024,31 @@ function showDeleteSelectedModal() {
   }
   
   // 多个选择时，显示确认弹窗
-  document.getElementById('deleteName').textContent = names.join(', ');
+  document.getElementById('deleteSingleInfo').style.display = 'none';
+  document.getElementById('deleteBatchInfo').style.display = 'block';
+  document.getElementById('deleteBatchCount').textContent = count;
+  
+  // 最多显示前 5 个文件名，其余显示 "+N more"
+  const maxShow = 5;
+  const showNames = names.slice(0, maxShow);
+  const moreCount = count - maxShow;
+  
+  let listHtml = '';
+  showNames.forEach(n => {
+    listHtml += `<div class="file-item">${escapeHtml(n)}</div>`;
+  });
+  if (moreCount > 0) {
+    listHtml += `<div class="file-more">... 以及其他 ${moreCount} 个项目</div>`;
+  }
+  
+  document.getElementById('deleteBatchList').innerHTML = listHtml;
   document.getElementById('deleteModal').classList.add('show');
+  
   // 修改删除按钮文字
   const deleteBtn = document.querySelector('#deleteModal .btn-danger');
   if (deleteBtn) {
-    deleteBtn.textContent = `删除 (${count})`;
     deleteBtn.innerHTML = `<span class="material-icons" style="font-size:14px">delete</span>删除 (${count})`;
   }
-  // 临时替换 deleteItem 函数
   window._batchDelete = true;
 }
 
@@ -1071,13 +1089,10 @@ function showMoveSelectedModal() {
   if (selectedFiles.size === 0) return;
   moveSelectedTargets = Array.from(selectedFiles);
   
-  // 如果只选了一个，提示用户移动操作不支持多选（需先确认逻辑）
-  // 复用 moveModal，但修改提示信息
   document.getElementById('moveSource').textContent = `已选择 ${moveSelectedTargets.length} 个项目`;
   moveTargetPath = '';
   loadFolderTree('');
   document.getElementById('moveModal').classList.add('show');
-  // 修改移动按钮文字
   const moveBtn = document.querySelector('#moveModal .btn-primary');
   if (moveBtn) {
     moveBtn.textContent = `移动 (${moveSelectedTargets.length})`;
@@ -1233,16 +1248,17 @@ function closeModal(id) {
     resetPreviewEncoding();
   }
   if (id === 'deleteModal') {
-    // 重置删除弹窗状态
     window._batchDelete = false;
+    // 重置弹窗显示状态为默认（单个删除）
+    document.getElementById('deleteSingleInfo').style.display = 'block';
+    document.getElementById('deleteBatchInfo').style.display = 'none';
+    document.getElementById('deleteBatchList').innerHTML = '';
     const deleteBtn = document.querySelector('#deleteModal .btn-danger');
     if (deleteBtn) {
-      deleteBtn.textContent = '删除';
       deleteBtn.innerHTML = '<span class="material-icons" style="font-size:14px">delete</span>删除';
     }
   }
   if (id === 'moveModal') {
-    // 重置移动弹窗状态
     moveSelectedTargets = [];
     const moveBtn = document.querySelector('#moveModal .btn-primary');
     if (moveBtn) {
@@ -1289,7 +1305,6 @@ document.addEventListener('click', e => {
     hideMenu();
   }
   if (!e.target.closest('.file-card,.file-list-row,.context-menu,.modal-overlay,.selection-toolbar')) {
-    // 多选模式下，点击空白区域不取消选择
     if (!selectionMode) {
       deselectAll();
     }
@@ -1320,12 +1335,10 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Backspace' && !e.target.tagName === 'INPUT') {
     goUp();
   }
-  // Ctrl+A: 全选
   if ((e.ctrlKey || e.metaKey) && e.key === 'a' && selectedFiles.size === 0) {
     e.preventDefault();
     selectAll();
   }
-  // Escape: 取消选择
   if (e.key === 'Escape') {
     deselectAll();
   }

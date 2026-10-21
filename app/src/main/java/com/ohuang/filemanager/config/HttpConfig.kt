@@ -2,16 +2,9 @@ package com.ohuang.filemanager.config
 
 import android.content.Context
 import android.widget.Toast
-import androidx.compose.ui.text.substring
-import com.google.gson.Gson
 import com.ohuang.filemanager.data.ApiService
 import com.ohuang.filemanager.server.scan.DeviceBindingManager
-import com.ohuang.filemanager.server.scan.DeviceInfo
-import com.ohuang.filemanager.server.scan.DeviceScanner
-import com.ohuang.filemanager.server.util.AppContext
 import com.ohuang.filemanager.util.SPUtil
-import com.ohuang.kthttp.call.awaitOrNull
-import com.ohuang.kthttp.transform.gsonTransForm
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,7 +38,7 @@ object HttpConfig {
        withContext(Dispatchers.IO){
            if (!isScanned&&DeviceBindingManager.isUseDevice()) {
                isScanned=true
-               DeviceBindingManager.scanOrNull()
+               DeviceBindingManager.scanBindDevice()
            }
            ApiService.testConnect().request {
                _readOnlyFlow.value = it.lowercase().contains("read")

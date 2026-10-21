@@ -10,6 +10,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 
 
 /**
@@ -54,21 +56,47 @@ object DeviceBindingManager {
     fun init() {
         loadBoundDevices()
         loadBoundDeviceId()
-
     }
 
-    suspend fun scanOrNull(): List<DeviceInfo>? {
+
+    suspend fun scanDevices(deviceId: String,timeOut: Long=5000):DeviceInfo?{
+        return suspendCancellableCoroutine<DeviceInfo?> {  continuation ->
+            scope.launch{
+                val devices = scanner.scan(timeOut){ devices->
+                    val dev=devices.find{ deviceId==it.deviceId}
+                    if (dev!=null){
+                        if (continuation.isActive){
+                            continuation.resume(dev)
+                        }
+                    }
+                    updateBindDevices(devices)
+
+                }
+
+                _scanDevices.value = devices.toMutableList()
+                if (continuation.isActive) {
+                    continuation.resume(null)
+                }
+
+            }
+
+        }
+
+    }
+    suspend fun scanBindDevice(): DeviceInfo? {
         try {
-            return scan()
+            return scanDevices(connectDeviceId.value)
         } catch (_: Exception) {
         }
         return null
     }
 
-    suspend fun scan(timeOut: Long = 3000): List<DeviceInfo> {
-        val devices = scanner.scan(timeOut)
-        _scanDevices.value = devices.toMutableList()
-        updateBindDevices(devices)
+    suspend fun scan(timeOut: Long = 10000): List<DeviceInfo> {
+        val devices = scanner.scan(timeOut){ devices->
+            _scanDevices.value = devices.toMutableList()
+            updateBindDevices(devices)
+        }
+
         return devices
     }
 
@@ -96,7 +124,7 @@ object DeviceBindingManager {
         _boundDevices.value = current
         saveBoundDevices()
         saveConnectDeviceId(device.deviceId)
-        scanOrNull()
+        scanBindDevice()
     }
 
      fun unbindDevice() {
