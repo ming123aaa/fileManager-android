@@ -927,121 +927,96 @@ private fun DeviceScanSection(
     var isScanning by remember { mutableStateOf(false) }
     var scanError by remember { mutableStateOf<String?>(null) }
     var connectMsg by remember { mutableStateOf<String>("") }
+    var showAllBoundDevices by remember { mutableStateOf(false) }
 
     // 已绑定设备
     if (boundDevices.isNotEmpty()) {
-        Text(
-            "绑定设备",
-            style = MaterialTheme.typography.labelLarge,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
+        // 拆分已连接和未连接的设备
+        val connectedDevices = boundDevices.filter { currentBoundDeviceId == it.deviceId }
+        val disconnectedDevices = boundDevices.filter { currentBoundDeviceId != it.deviceId }
 
-
-        boundDevices.sortedBy { device ->
-            val isActive = currentBoundDeviceId == device.deviceId
-            return@sortedBy !isActive
-        }.forEach { device ->
-            val isActive = currentBoundDeviceId == device.deviceId
-
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 3.dp),
-                shape = MaterialTheme.shapes.medium,
-                color = if (isActive) MaterialTheme.colorScheme.primaryContainer
-                else MaterialTheme.colorScheme.background,
-                tonalElevation = if (isActive) 2.dp else 0.dp
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+        // 标题行：绑定设备 + 显示/收起其他设备（同一行）
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "绑定设备",
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.weight(1f)
+            )
+            if (disconnectedDevices.isNotEmpty()) {
+                Surface(
+                    onClick = { showAllBoundDevices = !showAllBoundDevices },
+                    shape = MaterialTheme.shapes.small,
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                 ) {
                     Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (isActive) {
-                            Icon(
-                                Icons.Default.Check,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                        }
-                        Column {
-                            Text(
-                                device.deviceName,
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                            Text(
-                                device.baseUrl,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        if (isActive) {
-                            FilledTonalButton(
-                                onClick = {
-                                    DeviceBindingManager.unbindDevice()
-                                },
-                                colors = ButtonDefaults.filledTonalButtonColors().copy(
-                                    contentColor =
-                                        MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
-                                ),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                                modifier = Modifier.height(32.dp)
-                            ) {
-                                Text("断开", style = MaterialTheme.typography.labelMedium)
-                            }
-                        } else {
-
-                            FilledTonalButton(
-                                onClick = {
-                                    scope.launch {
-                                        connectMsg = ""
-                                        DeviceBindingManager.bindDevice(device)
-                                        connectMsg = ApiService.testConnect().awaitOrNull() ?: "连接失败"
-                                    }
-                                },
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                                modifier = Modifier.height(32.dp)
-                            ) {
-                                Text("连接", style = MaterialTheme.typography.labelMedium)
-                            }
-                        }
-                        IconButton(
-                            onClick = {
-                                if (isActive) {
-                                    DeviceBindingManager.unbindDevice()
-                                }
-                                DeviceBindingManager.deleteDevice(device.deviceId)
-
-                            },
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.Delete,
-                                contentDescription = "解绑",
-                                modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
-                            )
-                        }
+                        Text(
+                            text = if (showAllBoundDevices) "收起" else "${disconnectedDevices.size}台其他",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = if (showAllBoundDevices) Icons.Default.Clear else Icons.Default.Devices,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
-            if (isActive && connectMsg.isNotEmpty()) {
-                Text(
-                    "状态:$connectMsg",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (connectMsg.contains("成功")||connectMsg.contains("success")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+        }
+
+        // 已连接的设备 — 始终显示
+        connectedDevices.forEach { device ->
+            DeviceItemRow(
+                device = device,
+                isActive = true,
+                connectMsg = connectMsg,
+                onConnect = {
+                    scope.launch {
+                        connectMsg = ""
+                        DeviceBindingManager.bindDevice(device)
+                        connectMsg = ApiService.testConnect().awaitOrNull() ?: "连接失败"
+                    }
+                },
+                onDisconnect = { DeviceBindingManager.unbindDevice() },
+                onDelete = {
+                    DeviceBindingManager.unbindDevice()
+                    DeviceBindingManager.deleteDevice(device.deviceId)
+                }
+            )
+        }
+
+        // 未连接的设备 — 默认隐藏，点击展开
+        if (disconnectedDevices.isNotEmpty() && showAllBoundDevices) {
+            disconnectedDevices.forEach { device ->
+                DeviceItemRow(
+                    device = device,
+                    isActive = false,
+                    connectMsg = connectMsg,
+                    onConnect = {
+                        scope.launch {
+                            connectMsg = ""
+                            DeviceBindingManager.bindDevice(device)
+                            connectMsg = ApiService.testConnect().awaitOrNull() ?: "连接失败"
+                        }
+                    },
+                    onDisconnect = { DeviceBindingManager.unbindDevice() },
+                    onDelete = {
+                        if (currentBoundDeviceId == device.deviceId) {
+                            DeviceBindingManager.unbindDevice()
+                        }
+                        DeviceBindingManager.deleteDevice(device.deviceId)
+                    }
                 )
-                Spacer(modifier = Modifier.height(8.dp))
             }
         }
 
@@ -1219,6 +1194,107 @@ private fun DeviceScanSection(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
+        }
+    }
+}
+
+@Composable
+private fun DeviceItemRow(
+    device: com.ohuang.filemanager.server.scan.DeviceInfo,
+    isActive: Boolean,
+    connectMsg: String,
+    onConnect: () -> Unit,
+    onDisconnect: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 3.dp),
+        shape = MaterialTheme.shapes.medium,
+        color = if (isActive) MaterialTheme.colorScheme.primaryContainer
+        else MaterialTheme.colorScheme.background,
+        tonalElevation = if (isActive) 2.dp else 0.dp
+    ) {
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (isActive) {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+                    Column {
+                        Text(
+                            device.deviceName,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            device.baseUrl,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (isActive) {
+                        FilledTonalButton(
+                            onClick = onDisconnect,
+                            colors = ButtonDefaults.filledTonalButtonColors().copy(
+                                contentColor =
+                                    MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+                            ),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Text("断开", style = MaterialTheme.typography.labelMedium)
+                        }
+                    } else {
+                        FilledTonalButton(
+                            onClick = onConnect,
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Text("连接", style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                    IconButton(
+                        onClick = onDelete,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "解绑",
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+            }
+            if (isActive && connectMsg.isNotEmpty()) {
+                Text(
+                    "状态:$connectMsg",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (connectMsg.contains("成功") || connectMsg.contains("success"))
+                        MaterialTheme.colorScheme.primary
+                    else
+                        MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(start = 12.dp, bottom = 8.dp)
+                )
+            }
         }
     }
 }

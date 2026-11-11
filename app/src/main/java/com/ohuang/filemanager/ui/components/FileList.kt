@@ -50,6 +50,7 @@ fun FileList(
     onDelete: (FileItem) -> Unit = {},
     onMove: (FileItem) -> Unit = {},
     onCopyLink: (FileItem) -> Unit = {},
+    onCopyFile: (FileItem) -> Unit = {},
     onOpenInNew: (FileItem) -> Unit = {},
     // 多选模式相关参数
     isMultiSelectMode: Boolean = false,
@@ -159,6 +160,10 @@ fun FileList(
                                 contextMenuFile = null
                                 onCopyLink(f)
                             },
+                            onCopyFile = { f ->
+                                contextMenuFile = null
+                                onCopyFile(f)
+                            },
                             onOpenInNew = { f ->
                                 contextMenuFile = null
                                 onOpenInNew(f)
@@ -212,6 +217,10 @@ fun FileList(
                             onCopyLink = { f ->
                                 contextMenuFile = null
                                 onCopyLink(f)
+                            },
+                            onCopyFile = { f ->
+                                contextMenuFile = null
+                                onCopyFile(f)
                             },
                             onOpenInNew = { f ->
                                 contextMenuFile = null

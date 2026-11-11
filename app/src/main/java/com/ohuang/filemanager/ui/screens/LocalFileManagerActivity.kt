@@ -53,6 +53,7 @@ import com.ohuang.filemanager.ui.viewmodel.SortBy
 import com.ohuang.filemanager.ui.viewmodel.SortDirection
 import com.ohuang.filemanager.ui.viewmodel.ViewMode
 import com.ohuang.filemanager.util.SPUtil
+import com.ohuang.filemanager.util.copyFileToClipboard
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -1200,6 +1201,11 @@ fun LocalFileManagerScreen(
                                 )
                             )
                             Toast.makeText(context, "路径已复制到剪贴板", Toast.LENGTH_SHORT).show()
+                        },
+                        onCopyFile = { file ->
+                            val success = copyFileToClipboard(context, viewModel.getFullPath(file))
+                            val msg = if (success) "文件已复制到剪贴板" else "复制文件失败"
+                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                         },
                         onOpenInNew = { file ->
                             val f = File(viewModel.getFullPath(file))

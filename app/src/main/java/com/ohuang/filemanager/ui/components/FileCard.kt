@@ -49,6 +49,7 @@ fun FileCard(
     onMove: (FileItem) -> Unit = {},
     onDelete: (FileItem) -> Unit = {},
     onCopyLink: (FileItem) -> Unit = {},
+    onCopyFile: (FileItem) -> Unit = {},
     onOpenInNew: (FileItem) -> Unit = {}
 ) {
 
@@ -243,6 +244,15 @@ fun FileCard(
                         Icon(Icons.Default.Link, contentDescription = null)
                     }
                 )
+                if (isLocalFile) {
+                    DropdownMenuItem(
+                        text = { Text("复制文件") },
+                        onClick = { onCopyFile(file) },
+                        leadingIcon = {
+                            Icon(Icons.Default.ContentCopy, contentDescription = null)
+                        }
+                    )
+                }
                 DropdownMenuItem(
                     text = { Text(if (isLocalFile) "在其他应用打开" else "在浏览器打开") },
                     onClick = { onOpenInNew(file) },

@@ -34,6 +34,7 @@ import androidx.navigation.NavController
 import com.ohuang.filemanager.data.AppDownloadManager
 import com.ohuang.filemanager.data.DownloadTask
 import com.ohuang.filemanager.ui.components.FileType
+import com.ohuang.filemanager.util.copyFileToClipboard
 import com.ohuang.kthttp.call.awaitOrNull
 import kotlinx.coroutines.launch
 import java.io.File
@@ -513,6 +514,16 @@ fun DownloadScreen(navController: NavController, onBack: () -> Unit) {
                                     }
                                 }
                             },
+                            onCopy = {
+                                if (task.status == DownloadTask.Status.COMPLETED) {
+                                    val localFile = task.localFile
+                                    if (!task.isFolder && localFile.exists()) {
+                                        val success = copyFileToClipboard(context, localFile.absolutePath)
+                                        val msg = if (success) "文件已复制到剪贴板" else "复制文件失败"
+                                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            },
                             onPause = { AppDownloadManager.pauseDownload(task.id) },
                             onResume = { AppDownloadManager.resumeDownload(task.id) },
                             onCancel = { AppDownloadManager.cancelDownload(task.id) },
@@ -884,6 +895,7 @@ private fun DownloadTaskItem(
     onToggleSelection: () -> Unit,
     onClick: () -> Unit = {},
     onShare: () -> Unit = {},
+    onCopy: () -> Unit = {},
     onPause: () -> Unit,
     onResume: () -> Unit,
     onCancel: () -> Unit,
@@ -1049,6 +1061,13 @@ private fun DownloadTaskItem(
                         }
 
                         DownloadTask.Status.COMPLETED -> {
+                            IconButton(onClick = onCopy, modifier = Modifier.size(36.dp)) {
+                                Icon(
+                                    Icons.Default.ContentCopy,
+                                    contentDescription = "复制文件",
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
                             IconButton(onClick = onShare, modifier = Modifier.size(36.dp)) {
                                 Icon(
                                     Icons.Default.OpenInNew,

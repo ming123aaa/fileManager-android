@@ -2,6 +2,8 @@
 
 一个基于 Android 的现代化文件管理器应用，支持文件浏览、预览、编辑、上传和管理功能。同时内置 AndServer 服务端，可作为独立的文件管理服务使用。
 
+跨平台APP-[FileManager KMP](https://github.com/ming123aaa/kmp-filemanager)
+
 服务端项目-[FileManager Server](https://github.com/ming123aaa/fileManager-SpringBoot)
 
 ## 功能特性
